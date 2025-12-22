@@ -4,6 +4,7 @@ nxdk_low_level_nv2a_tests
 Various tests for very low level operation of the nv2a GPU.
 
 * ptimer_alarm_test - tests the operation of NV_PTIMER_ALARM_0 and the associated interrupt.
+* pfifo_cache1_test - tests submission and execution of pushbuffer commands via DMA and the CACHE1 registers.
 
 ## CLion
 

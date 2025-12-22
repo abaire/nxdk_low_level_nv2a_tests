@@ -89,7 +89,7 @@ macro(create_test_xiso TARGET_NAME XBE_TITLE)
         )
     endif ()
 
-    set(XBE_TARGET "${TARGET_NAME}_xbe")
+    set(XBE_TARGET "${TARGET_NAME}_xiso")
 
     add_xbe(
             ${XBE_TARGET} "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.exe"
@@ -114,4 +114,11 @@ create_test_xiso(
         ptimer_alarm_test
         "PTIMER alarm test"
         ptimer_alarm_main.cpp
+)
+
+# pfifo_cache1_test
+create_test_xiso(
+        pfifo_cache1_test
+        "PFIFO CACHE1 test"
+        pfifo_cache1_main.cpp
 )
