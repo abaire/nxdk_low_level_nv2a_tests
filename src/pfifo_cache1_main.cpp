@@ -32,6 +32,7 @@
 #define BLOCK_USER 0x800000
 
 #define _PFIFO_ADDR(addr) (NV2A_MMIO_BASE + (addr))
+#define _PTIMER_ADDR(addr) (NV2A_MMIO_BASE + (addr))
 // #define _PGRAPH_ADDR(addr) (NV2A_MMIO_BASE + BLOCK_PGRAPH + (addr))
 
 extern "C" {
@@ -66,9 +67,9 @@ volatile DWORD* USER_DMA_GET =
 #define DMA_GET_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_GET)
 #define DMA_SUBROUTINE _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_SUBROUTINE)
 
-#define CACHE_PUSH_MASTER_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_PUSH0)
-#define CACHE_PUSH_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_PUSH)
-#define CACHE_PULL_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_PULL0)
+#define CACHE1_PUSH0_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_PUSH0)
+#define CACHE1_DMA_PUSH_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_PUSH)
+#define CACHE1_PULL0_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_PULL0)
 #define CACHE_PUT_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_PUT)
 #define CACHE_GET_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_GET)
 #define CACHE1_STATUS _PFIFO_ADDR(NV_PFIFO_CACHE1_STATUS)
@@ -79,6 +80,15 @@ volatile DWORD* USER_DMA_GET =
 
 #define CTX_SWITCH1 _PGRAPH_ADDR(NV_PGRAPH_CTX_SWITCH1)
 #define PGRAPH_STATE _PGRAPH_ADDR(NV_PGRAPH_FIFO)
+
+#define PTIMER_TIME_LOW _PTIMER_ADDR(NV_PTIMER_TIME_0)
+#define PTIMER_TIME_HIGH _PTIMER_ADDR(NV_PTIMER_TIME_1)
+
+#define NV2A_PROFILE_DECLARE() uint64_t __start_time, __end_time
+#define NV2A_PROFILE_START() GetNV2ATime(&__start_time)
+#define NV2A_PROFILE_END(delta_variable_name) \
+  GetNV2ATime(&__end_time);                   \
+  delta_variable_name = __end_time - __start_time
 
 inline uint32_t ReadDWORD(intptr_t address) {
   return *(volatile uint32_t*)(address);
@@ -103,13 +113,14 @@ struct StateEntry {
   DWORD cache_get;
   DWORD cache_put;
 
-  DWORD cache_push_state;
-  DWORD cache_pull_state;
+  DWORD dma_push_state;
+  DWORD cache1_push0_state;
+  DWORD cache1_pull0_state;
   DWORD cache1_status;
 };
 
 static constexpr auto kStateBufferEntries = 4096;
-static StateEntry* state_buffer = nullptr;
+static StateEntry* default_state_buffer = nullptr;
 
 inline void FillStateBuffer(StateEntry* state_entry) {
   for (auto i = 0; i < kStateBufferEntries; ++i, ++state_entry) {
@@ -118,8 +129,9 @@ inline void FillStateBuffer(StateEntry* state_entry) {
     state_entry->cache_get = ReadDWORD(CACHE_GET_ADDR);
     state_entry->cache_put = ReadDWORD(CACHE_PUT_ADDR);
 
-    state_entry->cache_push_state = ReadDWORD(CACHE_PUSH_STATE);
-    state_entry->cache_pull_state = ReadDWORD(CACHE_PULL_STATE);
+    state_entry->dma_push_state = ReadDWORD(CACHE1_DMA_PUSH_STATE);
+    state_entry->cache1_push0_state = ReadDWORD(CACHE1_PUSH0_STATE);
+    state_entry->cache1_pull0_state = ReadDWORD(CACHE1_PULL0_STATE);
     state_entry->cache1_status = ReadDWORD(CACHE1_STATUS);
   }
 }
@@ -141,11 +153,13 @@ void PrintStateBuffer(const StateEntry* state_entry) {
     }
 
     DbgPrint(
-        "\t%d DMA: GET 0x%08X PUT 0x%08X  CACHE1: GET 0x%08X PUT 0x%08X "
-        "CachePushState: 0x%08X PullState: 0x%08X cache1status: 0x%08X\n",
-        i, state_entry->dma_get, state_entry->dma_put, state_entry->cache_get,
-        state_entry->cache_put, state_entry->cache_push_state,
-        state_entry->cache_pull_state, state_entry->cache1_status);
+        "\tDMA: GET 0x%08X PUT 0x%08X  CACHE1: GET 0x%08X PUT 0x%08X "
+        "DmaPush: 0x%08X CachePush0: 0x%08X CachePull0: 0x%08X Cache1Status: "
+        "0x%08X\n",
+        state_entry->dma_get, state_entry->dma_put, state_entry->cache_get,
+        state_entry->cache_put, state_entry->dma_push_state,
+        state_entry->cache1_push0_state, state_entry->cache1_pull0_state,
+        state_entry->cache1_status);
   }
 
   if (num_repeats) {
@@ -158,8 +172,9 @@ void PrintCurrentState() {
                             .dma_put = ReadDWORD(DMA_PUT_ADDR),
                             .cache_get = ReadDWORD(CACHE_GET_ADDR),
                             .cache_put = ReadDWORD(CACHE_PUT_ADDR),
-                            .cache_push_state = ReadDWORD(CACHE_PUSH_STATE),
-                            .cache_pull_state = ReadDWORD(CACHE_PULL_STATE),
+                            .dma_push_state = ReadDWORD(CACHE1_DMA_PUSH_STATE),
+                            .cache1_push0_state = ReadDWORD(CACHE1_PUSH0_STATE),
+                            .cache1_pull0_state = ReadDWORD(CACHE1_PULL0_STATE),
                             .cache1_status = ReadDWORD(CACHE1_STATUS)};
 
   DbgPrint(
@@ -167,8 +182,8 @@ void PrintCurrentState() {
       "0x%08X "
       "CachePushState: 0x%08X PullState: 0x%08X cache1status: 0x%08X\n",
       state_entry.dma_get, state_entry.dma_put, state_entry.cache_get,
-      state_entry.cache_put, state_entry.cache_push_state,
-      state_entry.cache_pull_state, state_entry.cache1_status);
+      state_entry.cache_put, state_entry.dma_push_state,
+      state_entry.cache1_pull0_state, state_entry.cache1_status);
 }
 
 void CommitPushbuffer(uint32_t* p) {
@@ -177,9 +192,402 @@ void CommitPushbuffer(uint32_t* p) {
   *USER_DMA_PUT = reinterpret_cast<DWORD>(pb_Put) & 0x03FFFFFF;
 }
 
-/* Main program function */
+inline bool SpinUntilEmptyCache1() {
+  static constexpr auto kMaxLoops = 0x7FFFFFF;
+  auto i = 0;
+  for (; i < kMaxLoops; ++i) {
+    if (ReadDWORD(CACHE1_STATUS) & NV_PFIFO_CACHE1_STATUS_LOW_MARK_EMPTY) {
+      break;
+    }
+    if (ReadDWORD(CACHE_GET_ADDR) == ReadDWORD(CACHE_PUT_ADDR)) {
+      break;
+    }
+  }
+  return i < kMaxLoops;
+}
+
+void EmptyCache1() {
+  auto p = pb_begin();
+  p = pb_push1(p, NV097_NO_OPERATION, 1);
+  p = pb_push1(p, NV097_NO_OPERATION, 1);
+  p = pb_push1(p, NV097_NO_OPERATION, 1);
+  p = pb_push1(p, NV097_NO_OPERATION, 1);
+  p = pb_push1(p, NV097_NO_OPERATION, 1);
+  p = pb_push1(p, NV097_NO_OPERATION, 1);
+  p = pb_push1(p, NV097_WAIT_FOR_IDLE, 0);
+  CommitPushbuffer(p);
+  for (auto i = 0; i < 0x800 && !(ReadDWORD(CACHE1_STATUS) &
+                                  NV_PFIFO_CACHE1_STATUS_LOW_MARK_EMPTY);
+       ++i) {
+    Sleep(1);
+  }
+}
+
+inline void GetNV2ATime(uint64_t* ret) {
+  *ret = ReadDWORD(PTIMER_TIME_HIGH);
+  *ret <<= 32;
+  *ret += ReadDWORD(PTIMER_TIME_LOW);
+}
+
+// Prove that neither the DMA pull nor the CACHE1 pointers move until the
+// MMIO put is updated.
+static void TestTinyPushbufferDoesNotAutoKickoff() {
+  DbgPrint("== TestTinyPushbufferDoesNotAutoKickoff ==\n");
+  DbgPrint(
+      "This test submits a tiny pushbuffer that sets the clear color value "
+      "and clears the active surface\n");
+
+  EmptyCache1();
+  PrintCurrentState();
+
+  auto p = pb_begin();
+  p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0x7F7F7F7F);
+  p = pb_push1(p, NV097_CLEAR_SURFACE,
+               NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
+                   NV097_CLEAR_SURFACE_Z);
+
+  DbgPrint(
+      "At this point the pushbuffer has been created in system memory but "
+      "has not been submitted yet. The current DMA and CACHE1 buffer "
+      "pointers will now be captured repeatedly and printed.\n");
+  FillStateBuffer(default_state_buffer);
+  PrintStateBuffer(default_state_buffer);
+  Sleep(500);
+
+  DbgPrint(
+      "Now the pushbuffer will be submitted by modifying the DMA PUT via "
+      "NV_USER.\n");
+  Sleep(500);
+
+  // This will commit the buffer and cause it to be read.
+  // This also enables the CACHE1 to be consumed such that the
+  // commands are executed.
+  CommitPushbuffer(p);
+  FillStateBuffer(default_state_buffer);
+
+  DbgPrint("DMA/CACHE1 state immediately following the commit:\n");
+  PrintStateBuffer(default_state_buffer);
+
+  DbgPrint("Test completed, sleeping and resetting the pushbuffer pointers\n");
+  Sleep(kMillisecondsBetweenTests);
+  pb_reset();
+}
+
+void TestLoopedBatchingWithoutWaitForIdle() {
+  DbgPrint("== TestLoopedBatchingWithoutWaitForIdle ==\n");
+  DbgPrint(
+      "This test submits batches in a loop, resetting the DMA pointers in "
+      "between submissions. WAIT_FOR_IDLE is never used.\n");
+
+  DbgPrint("DMA/CACHE1 state prior to the first submission:\n");
+  EmptyCache1();
+  PrintCurrentState();
+
+  constexpr auto kNumLoops = 4;
+  StateEntry* state_buffers[kNumLoops];
+  for (auto& buffer : state_buffers) {
+    buffer = new StateEntry[kStateBufferEntries];
+  }
+
+  constexpr auto kPushSetsPerLoop = 52;
+  constexpr auto kWordsPerSet = 2;
+
+  for (auto loop = 0; loop < kNumLoops; ++loop) {
+    auto p = pb_begin();
+
+    for (auto i = 0; i < kPushSetsPerLoop; ++i) {
+      p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0xFFFF0000 + loop * 64);
+      p = pb_push1(p, NV097_CLEAR_SURFACE,
+                   NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
+                       NV097_CLEAR_SURFACE_Z);
+      p = pb_push1(p, NV097_NO_OPERATION, 0);
+    }
+
+    pb_end(p);
+    FillStateBuffer(state_buffers[loop]);
+  }
+
+  for (auto loop = 0; loop < kNumLoops; ++loop) {
+    DbgPrint("DMA/CACHE1 state after submission %d [%d elements = %d bytes]\n",
+             loop, kPushSetsPerLoop * kWordsPerSet,
+             kPushSetsPerLoop * kWordsPerSet * 4);
+    PrintStateBuffer(state_buffers[loop]);
+  }
+
+  for (auto& buffer : state_buffers) {
+    delete[] buffer;
+    buffer = nullptr;
+  }
+
+  Sleep(kMillisecondsBetweenTests);
+
+  DbgPrint("State after final sleep\n");
+  FillStateBuffer(default_state_buffer);
+  PrintStateBuffer(default_state_buffer);
+
+  pb_reset();
+}
+
+void TestLoopedBatchingWithWaitForIdle() {
+  DbgPrint("== TestLoopedBatchingWithWaitForIdle ==\n");
+  DbgPrint(
+      "This test is identical to the previous except that WAIT_FOR_IDLE is "
+      "inserted after each clear.\n");
+
+  DbgPrint("DMA/CACHE1 state prior to the first submission:\n");
+  EmptyCache1();
+  PrintCurrentState();
+
+  constexpr auto kNumLoops = 4;
+  StateEntry* state_buffers[kNumLoops];
+  for (auto& buffer : state_buffers) {
+    buffer = new StateEntry[kStateBufferEntries];
+  }
+
+  constexpr auto kPushSetsPerLoop = 52;
+  constexpr auto kWordsPerSet = 2;
+
+  for (auto loop = 0; loop < kNumLoops; ++loop) {
+    auto p = pb_begin();
+
+    for (auto i = 0; i < kPushSetsPerLoop; ++i) {
+      p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0xFFFF0000 + loop * 64);
+      p = pb_push1(p, NV097_CLEAR_SURFACE,
+                   NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
+                       NV097_CLEAR_SURFACE_Z);
+      p = pb_push1(p, NV097_WAIT_FOR_IDLE, 0);
+    }
+
+    pb_end(p);
+    FillStateBuffer(state_buffers[loop]);
+  }
+
+  for (auto loop = 0; loop < kNumLoops; ++loop) {
+    DbgPrint("DMA/CACHE1 state after submission %d [%d elements = %d bytes]\n",
+             loop, kPushSetsPerLoop * kWordsPerSet,
+             kPushSetsPerLoop * kWordsPerSet * 4);
+    PrintStateBuffer(state_buffers[loop]);
+  }
+
+  for (auto& buffer : state_buffers) {
+    delete[] buffer;
+    buffer = nullptr;
+  }
+
+  Sleep(kMillisecondsBetweenTests);
+
+  DbgPrint("State after final sleep\n");
+  FillStateBuffer(default_state_buffer);
+  PrintStateBuffer(default_state_buffer);
+
+  pb_reset();
+}
+
+void TestVeryLargeFlatBufferWithNoWait() {
+  DbgPrint("== TestVeryLargeFlatBufferWithNoWait ==\n");
+  NV2A_PROFILE_DECLARE();
+
+  DbgPrint(
+      "This test submits a very large pushbuffer in one go. WAIT_FOR_IDLE is "
+      "never used.\n");
+
+  DbgPrint("DMA/CACHE1 state prior to the first submission:\n");
+  EmptyCache1();
+  PrintCurrentState();
+
+  constexpr auto kNumLoops = 4;
+  constexpr auto kPushSetsPerLoop = 52;
+  constexpr auto kWordsPerSet = 2;
+
+  auto p = pb_begin();
+  for (auto loop = 0; loop < kNumLoops; ++loop) {
+    for (auto i = 0; i < kPushSetsPerLoop; ++i) {
+      p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0xFFFF0000 + loop * 64);
+      p = pb_push1(p, NV097_CLEAR_SURFACE,
+                   NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
+                       NV097_CLEAR_SURFACE_Z);
+      p = pb_push1(p, NV097_NO_OPERATION, 0);
+    }
+  }
+
+  StateEntry* state_buffers[kNumLoops];
+  for (auto& buffer : state_buffers) {
+    buffer = new StateEntry[kStateBufferEntries];
+  }
+
+  NV2A_PROFILE_START();
+  pb_end(p);
+  for (auto& buffer : state_buffers) {
+    FillStateBuffer(buffer);
+  }
+  bool emptied = SpinUntilEmptyCache1();
+  uint64_t delta_time;
+  NV2A_PROFILE_END(delta_time);
+
+  DbgPrint("Processed pushbuffer [Emptied:%d] in %" PRIu64 " ticks\n", emptied,
+           delta_time);
+
+  for (auto loop = 0; loop < kNumLoops; ++loop) {
+    PrintStateBuffer(state_buffers[loop]);
+  }
+
+  for (auto& buffer : state_buffers) {
+    delete[] buffer;
+    buffer = nullptr;
+  }
+
+  Sleep(kMillisecondsBetweenTests);
+  pb_reset();
+}
+
+void TestVeryLargeFlatBufferWithWaits() {
+  DbgPrint("== TestVeryLargeFlatBufferWithWaits ==\n");
+  NV2A_PROFILE_DECLARE();
+
+  DbgPrint(
+      "This test submits a very large pushbuffer in one go. WAIT_FOR_IDLE is "
+      "used after each CLEAR_SURFACE call.\n");
+
+  DbgPrint("DMA/CACHE1 state prior to the first submission:\n");
+  EmptyCache1();
+  PrintCurrentState();
+
+  constexpr auto kNumLoops = 4;
+  constexpr auto kPushSetsPerLoop = 52;
+  constexpr auto kWordsPerSet = 2;
+
+  auto p = pb_begin();
+  for (auto loop = 0; loop < kNumLoops; ++loop) {
+    for (auto i = 0; i < kPushSetsPerLoop; ++i) {
+      p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0xFFFF0000 + loop * 64);
+      p = pb_push1(p, NV097_CLEAR_SURFACE,
+                   NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
+                       NV097_CLEAR_SURFACE_Z);
+      p = pb_push1(p, NV097_WAIT_FOR_IDLE, 0);
+    }
+  }
+
+  StateEntry* state_buffers[kNumLoops];
+  for (auto& buffer : state_buffers) {
+    buffer = new StateEntry[kStateBufferEntries];
+  }
+
+  NV2A_PROFILE_START();
+  pb_end(p);
+  for (auto& buffer : state_buffers) {
+    FillStateBuffer(buffer);
+  }
+  bool emptied = SpinUntilEmptyCache1();
+  uint64_t delta_time;
+  NV2A_PROFILE_END(delta_time);
+
+  DbgPrint("Processed pushbuffer [Emptied:%d] in %" PRIu64 " ticks\n", emptied,
+           delta_time);
+  for (auto loop = 0; loop < kNumLoops; ++loop) {
+    PrintStateBuffer(state_buffers[loop]);
+  }
+
+  for (auto& buffer : state_buffers) {
+    delete[] buffer;
+    buffer = nullptr;
+  }
+
+  Sleep(kMillisecondsBetweenTests);
+  pb_reset();
+}
+
+void CompareWaitForIdleAndNopTime() {
+  DbgPrint("== CompareWaitForIdleAndNopTime ==\n");
+  DbgPrint(
+      "This test submits 100 WAIT_FOR_IDLE commands and captures the time it "
+      "takes to empty the CACHE1. Then it submits 100 NOP commands and "
+      "captures the time it takes to process them.\n");
+
+  auto perform_test = [](uint32_t command) {
+    NV2A_PROFILE_DECLARE();
+    EmptyCache1();
+    PrintCurrentState();
+
+    static constexpr auto kNumEntries = 100;
+    auto p = pb_begin();
+    for (auto i = 0; i < kNumEntries; ++i) {
+      p = pb_push1(p, command, 0);
+    }
+
+    NV2A_PROFILE_START();
+    pb_end(p);
+    FillStateBuffer(default_state_buffer);
+    bool emptied = SpinUntilEmptyCache1();
+    uint64_t delta_time;
+    NV2A_PROFILE_END(delta_time);
+
+    DbgPrint("DMA/CACHE1 state after committing %d entries\n", kNumEntries);
+    PrintStateBuffer(default_state_buffer);
+    DbgPrint("Processed pushbuffer [Emptied:%d] in %" PRIu64 " ticks\n",
+             emptied, delta_time);
+    pb_reset();
+  };
+
+  DbgPrint("\tTesting NV097_WAIT_FOR_IDLE\n");
+  perform_test(NV097_WAIT_FOR_IDLE);
+
+  DbgPrint("\tTesting NV097_NO_OPERATION\n");
+  perform_test(NV097_NO_OPERATION);
+
+  DbgPrint("Test completed, sleeping and resetting the pushbuffer pointers\n");
+  Sleep(kMillisecondsBetweenTests);
+  pb_reset();
+}
+
+void CompareWaitForIdleAndNopTimeWithClears() {
+  DbgPrint("== CompareWaitForIdleAndNopTimeWithClears ==\n");
+  DbgPrint(
+      "This test submits 100 WAIT_FOR_IDLE + CLEAR_SURFACE pairs and captures "
+      "the time it takes to empty the CACHE1. Then it does the same with 100 "
+      "NOP + CLEAR_SURFACE pairs and captures the time it takes to process "
+      "them.\n");
+
+  auto perform_test = [](uint32_t command) {
+    NV2A_PROFILE_DECLARE();
+    EmptyCache1();
+    PrintCurrentState();
+
+    static constexpr auto kNumEntries = 100;
+    auto p = pb_begin();
+    for (auto i = 0; i < kNumEntries; ++i) {
+      p = pb_push1(p, command, 0);
+      p = pb_push1(p, NV097_CLEAR_SURFACE,
+                   NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
+                       NV097_CLEAR_SURFACE_Z);
+    }
+
+    NV2A_PROFILE_START();
+    pb_end(p);
+    FillStateBuffer(default_state_buffer);
+    bool emptied = SpinUntilEmptyCache1();
+    uint64_t delta_time;
+    NV2A_PROFILE_END(delta_time);
+
+    DbgPrint("DMA/CACHE1 state after committing %d entries\n", kNumEntries);
+    PrintStateBuffer(default_state_buffer);
+    DbgPrint("Processed pushbuffer [Emptied:%d] in %" PRIu64 " ticks\n",
+             emptied, delta_time);
+    pb_reset();
+  };
+
+  DbgPrint("\tTesting NV097_WAIT_FOR_IDLE\n");
+  perform_test(NV097_WAIT_FOR_IDLE);
+
+  DbgPrint("\tTesting NV097_NO_OPERATION\n");
+  perform_test(NV097_NO_OPERATION);
+
+  DbgPrint("Test completed, sleeping and resetting the pushbuffer pointers\n");
+  Sleep(kMillisecondsBetweenTests);
+  pb_reset();
+}
+
 int main() {
-  state_buffer = new StateEntry[kStateBufferEntries];
+  default_state_buffer = new StateEntry[kStateBufferEntries];
 
   debugPrint("Set video mode");
   if (!XVideoSetMode(kFramebufferWidth, kFramebufferHeight, kBitsPerPixel,
@@ -189,6 +597,7 @@ int main() {
     return 1;
   }
 
+  pb_size(PBKIT_PUSHBUFFER_SIZE * 4);
   int status = pb_init();
   if (status) {
     debugPrint("pb_init Error %d\n", status);
@@ -214,157 +623,15 @@ int main() {
   // dealing with flip/stall/etc...
   set_draw_buffer(pb_FBAddr[pb_front_index] & 0x03FFFFFF);
 
-  // Prove that neither the DMA pull nor the CACHE1 pointers move until the
-  // PIO get/put is updated.
-  {
-    DbgPrint(
-        "This test submits a tiny pushbuffer that sets the clear color value "
-        "and clears the active surface\n");
+  // TestTinyPushbufferDoesNotAutoKickoff();
+  // TestLoopedBatchingWithoutWaitForIdle();
+  // TestLoopedBatchingWithWaitForIdle();
 
-    PrintCurrentState();
+  TestVeryLargeFlatBufferWithNoWait();
+  TestVeryLargeFlatBufferWithWaits();
 
-    auto p = pb_begin();
-    p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0x7F7F7F7F);
-    p = pb_push1(p, NV097_CLEAR_SURFACE,
-                 NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
-                     NV097_CLEAR_SURFACE_Z);
-
-    DbgPrint(
-        "At this point the pushbuffer has been created in system memory but "
-        "has not been submitted yet. The current DMA and CACHE1 buffer "
-        "pointers will now be captured repeatedly and printed.\n");
-    FillStateBuffer(state_buffer);
-    PrintStateBuffer(state_buffer);
-    Sleep(500);
-
-    DbgPrint(
-        "Now the pushbuffer will be submitted by modifying the DMA PUT via "
-        "NV_USER.\n");
-    Sleep(500);
-
-    // This will commit the buffer and cause it to be read.
-    // This also enables the CACHE1 to be consumed such that the
-    // commands are executed.
-    CommitPushbuffer(p);
-    FillStateBuffer(state_buffer);
-
-    DbgPrint("DMA/CACHE1 state immediately following the commit:\n");
-    PrintStateBuffer(state_buffer);
-
-    DbgPrint(
-        "Test completed, sleeping and resetting the pushbuffer pointers\n");
-    Sleep(kMillisecondsBetweenTests);
-    pb_reset();
-  }
-
-  {
-    DbgPrint(
-        "This test submits a much larger buffer in several batches. The buffer "
-        "is primarily made up of NOP or WAIT_FOR_IDLE commands with a few "
-        "clear surface calls interspersed.\n");
-    PrintCurrentState();
-
-    auto p = pb_begin();
-
-    for (auto i = 0; i < 16; ++i) {
-      p = pb_push1(p, NV097_NO_OPERATION, 1);
-    }
-    p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0xFFFF0000);
-    p = pb_push1(p, NV097_CLEAR_SURFACE,
-                 NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
-                     NV097_CLEAR_SURFACE_Z);
-
-    DbgPrint("About to commit NOPs followed by a CLEAR_SURFACE...\n");
-    Sleep(500);
-    CommitPushbuffer(p);
-    FillStateBuffer(state_buffer);
-
-    DbgPrint("DMA/CACHE1 state after the first submission:\n");
-    PrintStateBuffer(state_buffer);
-
-    DbgPrint(
-        "About to push NOPs, another CLEAR_SURFACE, and WAIT_FOR_IDLE "
-        "commands\n");
-    for (auto i = 0; i < 32; ++i) {
-      p = pb_push1(p, NV097_NO_OPERATION, 1);
-    }
-    p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0xFF0000FF);
-    p = pb_push1(p, NV097_CLEAR_SURFACE,
-                 NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
-                     NV097_CLEAR_SURFACE_Z);
-    for (auto i = 0; i < 16; ++i) {
-      p = pb_push1(p, NV097_WAIT_FOR_IDLE, 0);
-    }
-
-    DbgPrint("State prior to committing the next batch:\n");
-    FillStateBuffer(state_buffer);
-    PrintStateBuffer(state_buffer);
-    Sleep(1000);
-
-    CommitPushbuffer(p);
-    FillStateBuffer(state_buffer);
-
-    DbgPrint("State after committing the batch:\n");
-    PrintStateBuffer(state_buffer);
-
-    Sleep(kMillisecondsBetweenTests);
-    pb_reset();
-  }
-
-  {
-    DbgPrint(
-        "This test submits batches in a loop, resetting the DMA pointers in "
-        "between submissions.\n");
-
-    DbgPrint("DMA/CACHE1 state prior to the first submission:\n");
-    PrintCurrentState();
-
-    constexpr auto kNumLoops = 32;
-    StateEntry* state_buffers[kNumLoops];
-    for (auto& buffer : state_buffers) {
-      buffer = new StateEntry[kStateBufferEntries];
-    }
-
-    constexpr auto kPushSetsPerLoop = 52;
-    constexpr auto kWordsPerSet = 2;
-
-    for (auto loop = 0; loop < kNumLoops; ++loop) {
-      auto p = pb_begin();
-
-      for (auto i = 0; i < kPushSetsPerLoop; ++i) {
-        p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0xFFFF0000 + loop * 64);
-        p = pb_push1(p, NV097_CLEAR_SURFACE,
-                     NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
-                         NV097_CLEAR_SURFACE_Z);
-      }
-
-      pb_end(p);
-      FillStateBuffer(state_buffers[loop]);
-
-      pb_reset();
-    }
-
-    for (auto loop = 0; loop < kNumLoops; ++loop) {
-      DbgPrint(
-          "DMA/CACHE1 state after submission %d [%d elements = %d bytes]\n",
-          loop, kPushSetsPerLoop * kWordsPerSet,
-          kPushSetsPerLoop * kWordsPerSet * 4);
-      PrintStateBuffer(state_buffers[loop]);
-    }
-
-    for (auto& buffer : state_buffers) {
-      delete[] buffer;
-      buffer = nullptr;
-    }
-
-    Sleep(kMillisecondsBetweenTests);
-
-    DbgPrint("State after final sleep\n");
-    FillStateBuffer(state_buffer);
-    PrintStateBuffer(state_buffer);
-
-    pb_reset();
-  }
+  CompareWaitForIdleAndNopTime();
+  CompareWaitForIdleAndNopTimeWithClears();
 
   pb_kill();
   return 0;
