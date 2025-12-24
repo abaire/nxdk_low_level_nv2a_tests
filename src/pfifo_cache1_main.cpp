@@ -62,14 +62,17 @@ volatile DWORD* USER_DMA_GET =
     reinterpret_cast<DWORD*>(VIDEO_BASE + NV_USER + 0x44);
 
 #define DMA_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_STATE)
-#define DMA_PUSH_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_PUT)
-#define DMA_PULL_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_GET)
+#define DMA_PUT_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_PUT)
+#define DMA_GET_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_GET)
 #define DMA_SUBROUTINE _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_SUBROUTINE)
+
 #define CACHE_PUSH_MASTER_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_PUSH0)
 #define CACHE_PUSH_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_DMA_PUSH)
 #define CACHE_PULL_STATE _PFIFO_ADDR(NV_PFIFO_CACHE1_PULL0)
-#define CACHE_PUSH_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_PUT)
-#define CACHE_PULL_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_GET)
+#define CACHE_PUT_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_PUT)
+#define CACHE_GET_ADDR _PFIFO_ADDR(NV_PFIFO_CACHE1_GET)
+#define CACHE1_STATUS _PFIFO_ADDR(NV_PFIFO_CACHE1_STATUS)
+
 #define CACHE1_METHOD _PFIFO_ADDR(NV_PFIFO_CACHE1_METHOD)
 #define CACHE1_DATA _PFIFO_ADDR(NV_PFIFO_CACHE1_DATA)
 #define RAM_HASHTABLE _PFIFO_ADDR(NV_PFIFO_RAMHT)
@@ -94,41 +97,55 @@ static void pb_cache_flush() {
   };
 }
 
-static constexpr auto kStateBufferEntries = 4096;
-static DWORD* state_buffer = nullptr;
+struct StateEntry {
+  DWORD dma_get;
+  DWORD dma_put;
+  DWORD cache_get;
+  DWORD cache_put;
 
-inline void FillStateBuffer(DWORD* state_entry) {
-  for (auto i = 0; i < kStateBufferEntries; ++i) {
-    *state_entry++ = ReadDWORD(DMA_PULL_ADDR);
-    *state_entry++ = ReadDWORD(DMA_PUSH_ADDR);
-    *state_entry++ = ReadDWORD(CACHE_PULL_ADDR);
-    *state_entry++ = ReadDWORD(CACHE_PUSH_ADDR);
+  DWORD cache_push_state;
+  DWORD cache_pull_state;
+  DWORD cache1_status;
+};
+
+static constexpr auto kStateBufferEntries = 4096;
+static StateEntry* state_buffer = nullptr;
+
+inline void FillStateBuffer(StateEntry* state_entry) {
+  for (auto i = 0; i < kStateBufferEntries; ++i, ++state_entry) {
+    state_entry->dma_get = ReadDWORD(DMA_GET_ADDR);
+    state_entry->dma_put = ReadDWORD(DMA_PUT_ADDR);
+    state_entry->cache_get = ReadDWORD(CACHE_GET_ADDR);
+    state_entry->cache_put = ReadDWORD(CACHE_PUT_ADDR);
+
+    state_entry->cache_push_state = ReadDWORD(CACHE_PUSH_STATE);
+    state_entry->cache_pull_state = ReadDWORD(CACHE_PULL_STATE);
+    state_entry->cache1_status = ReadDWORD(CACHE1_STATUS);
   }
 }
 
-void PrintStateBuffer(DWORD* state_entry) {
-  DWORD last_entry_set[4] = {0, 0, 0, 0};
+void PrintStateBuffer(const StateEntry* state_entry) {
+  StateEntry last_entry_set = {0};
   DWORD num_repeats = 0;
 
-  for (auto i = 0; i < kStateBufferEntries; ++i) {
-    auto dma_pull = *state_entry++;
-    auto dma_push = *state_entry++;
-    auto cache_pull = *state_entry++;
-    auto cache_push = *state_entry++;
-
-    if (i && !memcmp(last_entry_set, state_entry - 4, sizeof(last_entry_set))) {
+  for (auto i = 0; i < kStateBufferEntries; ++i, ++state_entry) {
+    if (i && !memcmp(&last_entry_set, state_entry, sizeof(last_entry_set))) {
       ++num_repeats;
       continue;
     }
 
-    memcpy(last_entry_set, state_entry - 4, sizeof(last_entry_set));
+    memcpy(&last_entry_set, state_entry, sizeof(last_entry_set));
     if (num_repeats) {
       DbgPrint("\t    ... repeated %d times ...\n", num_repeats);
       num_repeats = 0;
     }
 
-    DbgPrint("\t%d DMA: GET 0x%08X PUT 0x%08X  CACHE1: GET 0x%08X PUT 0x%08X\n",
-             i, dma_pull, dma_push, cache_pull, cache_push);
+    DbgPrint(
+        "\t%d DMA: GET 0x%08X PUT 0x%08X  CACHE1: GET 0x%08X PUT 0x%08X "
+        "CachePushState: 0x%08X PullState: 0x%08X cache1status: 0x%08X\n",
+        i, state_entry->dma_get, state_entry->dma_put, state_entry->cache_get,
+        state_entry->cache_put, state_entry->cache_push_state,
+        state_entry->cache_pull_state, state_entry->cache1_status);
   }
 
   if (num_repeats) {
@@ -137,15 +154,21 @@ void PrintStateBuffer(DWORD* state_entry) {
 }
 
 void PrintCurrentState() {
-  auto dma_pull = ReadDWORD(DMA_PULL_ADDR);
-  auto dma_push = ReadDWORD(DMA_PUSH_ADDR);
-  auto cache_pull = ReadDWORD(CACHE_PULL_ADDR);
-  auto cache_push = ReadDWORD(CACHE_PUSH_ADDR);
+  StateEntry state_entry = {.dma_get = ReadDWORD(DMA_GET_ADDR),
+                            .dma_put = ReadDWORD(DMA_PUT_ADDR),
+                            .cache_get = ReadDWORD(CACHE_GET_ADDR),
+                            .cache_put = ReadDWORD(CACHE_PUT_ADDR),
+                            .cache_push_state = ReadDWORD(CACHE_PUSH_STATE),
+                            .cache_pull_state = ReadDWORD(CACHE_PULL_STATE),
+                            .cache1_status = ReadDWORD(CACHE1_STATUS)};
 
   DbgPrint(
       "Current state: DMA: GET 0x%08X PUT 0x%08X  CACHE1: GET 0x%08X PUT "
-      "0x%08X\n",
-      dma_pull, dma_push, cache_pull, cache_push);
+      "0x%08X "
+      "CachePushState: 0x%08X PullState: 0x%08X cache1status: 0x%08X\n",
+      state_entry.dma_get, state_entry.dma_put, state_entry.cache_get,
+      state_entry.cache_put, state_entry.cache_push_state,
+      state_entry.cache_pull_state, state_entry.cache1_status);
 }
 
 void CommitPushbuffer(uint32_t* p) {
@@ -156,7 +179,7 @@ void CommitPushbuffer(uint32_t* p) {
 
 /* Main program function */
 int main() {
-  state_buffer = new DWORD[4 * kStateBufferEntries];
+  state_buffer = new StateEntry[kStateBufferEntries];
 
   debugPrint("Set video mode");
   if (!XVideoSetMode(kFramebufferWidth, kFramebufferHeight, kBitsPerPixel,
@@ -296,10 +319,10 @@ int main() {
     DbgPrint("DMA/CACHE1 state prior to the first submission:\n");
     PrintCurrentState();
 
-    constexpr auto kNumLoops = 8;
-    DWORD* state_buffers[kNumLoops];
+    constexpr auto kNumLoops = 32;
+    StateEntry* state_buffers[kNumLoops];
     for (auto& buffer : state_buffers) {
-      buffer = new DWORD[kStateBufferEntries * 4];
+      buffer = new StateEntry[kStateBufferEntries];
     }
 
     constexpr auto kPushSetsPerLoop = 52;
@@ -335,6 +358,11 @@ int main() {
     }
 
     Sleep(kMillisecondsBetweenTests);
+
+    DbgPrint("State after final sleep\n");
+    FillStateBuffer(state_buffer);
+    PrintStateBuffer(state_buffer);
+
     pb_reset();
   }
 
