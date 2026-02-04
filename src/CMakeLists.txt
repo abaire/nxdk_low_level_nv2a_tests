@@ -72,6 +72,7 @@ macro(create_test_xiso TARGET_NAME XBE_TITLE)
             "${CMAKE_CURRENT_SOURCE_DIR}"
             "${CMAKE_CURRENT_BINARY_DIR}"
             ${_VERTEX_SHADER_INCLUDE_DIRS}
+            "${CMAKE_SOURCE_DIR}/third_party"
     )
 
     target_link_libraries(
@@ -80,6 +81,8 @@ macro(create_test_xiso TARGET_NAME XBE_TITLE)
             NXDK::NXDK
             NXDK::NXDK_CXX
             NXDK::SDL2
+            PRIVATE
+            printf
     )
 
     if (DEFINED _VERTEX_SHADER_GEN_TARGET)
@@ -114,6 +117,8 @@ create_test_xiso(
         ptimer_alarm_test
         "PTIMER alarm test"
         ptimer_alarm_main.cpp
+        pbkit_util.cpp
+        pbkit_util.h
 )
 
 # pfifo_cache1_test
@@ -121,4 +126,6 @@ create_test_xiso(
         pfifo_cache1_test
         "PFIFO CACHE1 test"
         pfifo_cache1_main.cpp
+        pbkit_util.cpp
+        pbkit_util.h
 )
