@@ -129,3 +129,12 @@ create_test_xiso(
         pbkit_util.cpp
         pbkit_util.h
 )
+
+# clock_test
+create_test_xiso(
+        clock_test
+        "Clock test"
+        clock_main.cpp
+        pbkit_util.cpp
+        pbkit_util.h
+)

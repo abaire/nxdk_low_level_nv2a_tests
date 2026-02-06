@@ -12,7 +12,10 @@
 
 #include "pbkit_util.h"
 
-extern "C" DWORD ptimer_alarm_count;
+// #define VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY
+#define VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
+
+extern "C" volatile DWORD ptimer_alarm_count;
 extern "C" void (*ptimer_alarm_fired_callback)();
 
 static constexpr DWORD kMaxNumeratorDenominator = 0xFFFF;
@@ -20,6 +23,7 @@ static constexpr DWORD kMaxNumeratorDenominator = 0xFFFF;
 static constexpr DWORD kTestNumerator = 0xDE86;
 static constexpr DWORD kTestDenominator = 0x1DCD;
 static constexpr auto kNanosecondsPerSecond = 1000000000.0;
+static constexpr auto kNanosecondsPerMillisecond = 1000000;
 
 static constexpr uint64_t kTicksPerInterval = 16666666;  // ~60 Hz at 1GHz
 
@@ -77,11 +81,105 @@ struct ClockState {
 static uint64_t next_alarm_time = 0x00FFFFFF;
 static uint32_t alarms_scheduled = 1;
 
+#ifndef VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
 static void OnAlarmFired() {
   next_alarm_time += kTicksPerInterval;
   VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time);
   alarms_scheduled++;
 }
+#endif
+
+#ifdef VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
+static void TestTenAlarmCycles() {
+  ClockState clock_state;
+
+  ptimer_alarm_count = 0;
+
+  static constexpr auto kAlarmScheduleMilliseconds = 32;
+  static constexpr auto kAlarmScheduleNanoseconds =
+      kAlarmScheduleMilliseconds * kNanosecondsPerMillisecond;
+
+  // Force the clock to a known starting point that will require wraparound.
+  static constexpr auto kTestTimerStartHigh = 5;
+  clock_state.ptimer_now = (static_cast<uint64_t>(kTestTimerStartHigh) << 32) +
+                           (0xFFFFFFFF - (kAlarmScheduleNanoseconds / 2));
+
+  // Schedule an alarm
+  uint32_t time_1 = clock_state.ptimer_now >> 32;
+  VIDEOREG(NV_PTIMER_TIME_1) = time_1;
+  VIDEOREG(NV_PTIMER_TIME_0) = clock_state.ptimer_now & 0xFFFFFFFF;
+
+  const uint32_t alarm_time =
+      clock_state.ptimer_now + kAlarmScheduleNanoseconds;
+  VIDEOREG(NV_PTIMER_ALARM_0) = alarm_time;
+
+  DbgPrint("PTIMER clock setup: 0x%X / 0x%X\n", VIDEOREG(NV_PTIMER_NUMERATOR),
+           VIDEOREG(NV_PTIMER_DENOMINATOR));
+  DbgPrint(
+      "Current time is 0x%X 0x%X, alarm at 0x%X (init 0x%X, 0x%X delta) alarm "
+      "count "
+      "%d\n",
+      VIDEOREG(NV_PTIMER_TIME_1), VIDEOREG(NV_PTIMER_TIME_0),
+      VIDEOREG(NV_PTIMER_ALARM_0), alarm_time,
+      0xFFFFFFFF - static_cast<uint32_t>(clock_state.ptimer_now) + alarm_time,
+      ptimer_alarm_count);
+
+  VIDEOREG(NV_PTIMER_INTR_EN_0) = 1;
+
+  uint32_t last_alarm_count = ptimer_alarm_count;
+  uint32_t last_alarm_val = 0;
+  uint32_t last_alarm_time_0 = 0;
+  uint32_t last_alarm_time_1 = 0;
+
+  while (ptimer_alarm_count < 10) {
+    if (ptimer_alarm_count == last_alarm_count) {
+      continue;
+    }
+
+    uint32_t now_0 = VIDEOREG(NV_PTIMER_TIME_0);
+    uint32_t now_1 = VIDEOREG(NV_PTIMER_TIME_1);
+    uint32_t now_alarm = VIDEOREG(NV_PTIMER_ALARM_0);
+
+    DbgPrint("  > Alarm count %d  time 0x%X 0x%X alarm reg: 0x%X init 0x%X\n",
+             ptimer_alarm_count, now_1, now_0, now_alarm, alarm_time);
+    if (last_alarm_val || last_alarm_time_0 || last_alarm_time_1) {
+      DbgPrint("    Delta high: 0x%X low: 0x%X alarm: 0x%X\n",
+               now_1 - last_alarm_time_1, now_0 - last_alarm_time_0,
+               now_alarm - last_alarm_val);
+    }
+
+    last_alarm_count = ptimer_alarm_count;
+    last_alarm_val = now_alarm;
+    last_alarm_time_0 = now_0;
+    last_alarm_time_1 = now_1;
+  }
+  auto end_time_1 = VIDEOREG(NV_PTIMER_TIME_1);
+  auto end_time_0 = VIDEOREG(NV_PTIMER_TIME_0);
+
+  VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
+
+  DbgPrint("  ! Alarm count %d  time 0x%X 0x%X. Was scheduled with 0x%X 0x%X\n",
+           ptimer_alarm_count, end_time_1, end_time_0, kTestTimerStartHigh,
+           alarm_time);
+
+  if (VIDEOREG(NV_PTIMER_ALARM_0) != alarm_time) {
+    DbgPrint("!!! ALARM_0 was modified: 0x%X != scheduled 0x%X\n",
+             VIDEOREG(NV_PTIMER_ALARM_0), alarm_time);
+  }
+}
+
+static void TestAlarmRolloverAndAutoReset() {
+  DWORD ptimer_numerator = kTestNumerator;
+  DWORD ptimer_denominator = kTestDenominator;
+  VIDEOREG(NV_PTIMER_NUMERATOR) = ptimer_numerator;
+  VIDEOREG(NV_PTIMER_DENOMINATOR) = ptimer_denominator;
+  TestTenAlarmCycles();
+
+  VIDEOREG(NV_PTIMER_NUMERATOR) = 1000;
+  VIDEOREG(NV_PTIMER_DENOMINATOR) = 100;
+  TestTenAlarmCycles();
+}
+#endif
 
 int main() {
   debugPrint("Set video mode");
@@ -113,9 +211,14 @@ int main() {
   pb_show_front_screen();
   debugClearScreen();
 
-  ClockState clock_state;
+#ifdef VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
+  TestAlarmRolloverAndAutoReset();
+  Sleep(1000);
+  pb_kill();
+  return 0;
+#else
 
-  ptimer_alarm_fired_callback = OnAlarmFired;
+  ClockState clock_state;
 
 #ifdef VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY
   VIDEOREG(NV_PTIMER_TIME_1) = 1;
@@ -126,6 +229,8 @@ int main() {
 
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
 #else
+  ptimer_alarm_fired_callback = OnAlarmFired;
+
   VIDEOREG(NV_PTIMER_TIME_1) = 1;
   VIDEOREG(NV_PTIMER_ALARM_0) =
       (clock_state.last_ptimer + 100000000) & 0xFFFFFFFF;
@@ -259,10 +364,14 @@ int main() {
              clock_state.qpc_nanoseconds);
     pb_print("GPU / CPU factor: %3f\n", clock_state.ptimer_ticks_per_qpc_ticks);
     pb_print("\n");
+
+#if !(defined(VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER) || \
+      defined(VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY))
     pb_print("Drift Test:\n");
     pb_print("Scheduled: %d\n", alarms_scheduled);
     pb_print("Fired:     %d\n", actual_alarms);
     pb_print("Diff:      %d\n", (int)(alarms_scheduled - actual_alarms));
+#endif
 
     pb_draw_text_screen();
 
@@ -272,4 +381,5 @@ int main() {
 
   pb_kill();
   return 0;
+#endif
 }
