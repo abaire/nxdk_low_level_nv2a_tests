@@ -12,6 +12,8 @@
 
 #include "pbkit_util.h"
 
+extern "C" void (*ptimer_alarm_fired_callback)();
+
 // Observed values from Def Jam: Fight for NY
 static constexpr DWORD kTestNumerator = 0xDE86;
 static constexpr DWORD kTestDenominator = 0x1DCD;
@@ -90,6 +92,20 @@ struct ClockState {
   double tsc_ticks_per_qpc_ticks{0.0};
 };
 
+static uint64_t last_alarm_ptimer_time;
+static uint64_t last_alarm_tsc_time;
+static uint64_t last_alarm_time_delta = 0;
+static uint64_t next_alarm_time = 0;
+
+static void OnAlarmFired() {
+  last_alarm_ptimer_time = GetPTIMERTime();
+  last_alarm_tsc_time = GetTSCTime();
+  last_alarm_time_delta = last_alarm_ptimer_time - next_alarm_time;
+
+  next_alarm_time = last_alarm_ptimer_time + kTicksPerInterval;
+  VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time);
+}
+
 int main() {
   debugPrint("Set video mode");
   if (!XVideoSetMode(kFramebufferWidth, kFramebufferHeight, kBitsPerPixel,
@@ -129,6 +145,12 @@ int main() {
   VIDEOREG(NV_PTIMER_NUMERATOR) = ptimer_numerator;
   VIDEOREG(NV_PTIMER_DENOMINATOR) = ptimer_denominator;
 
+  ptimer_alarm_fired_callback = OnAlarmFired;
+  VIDEOREG(NV_PTIMER_TIME_1) = 1;
+  VIDEOREG(NV_PTIMER_ALARM_0) =
+      (clock_state.last_ptimer + 100000000) & 0xFFFFFFFF;
+  VIDEOREG(NV_PTIMER_INTR_EN_0) = 1;
+
   bool running = true;
   bool freeze_tick_display = false;
 
@@ -136,6 +158,7 @@ int main() {
   uint64_t ptimer_peak_delta = 0;
   uint64_t qpc_peak_delta = 0;
   uint64_t tsc_peak_delta = 0;
+  uint64_t alarm_peak_delta = 0;
 
   while (running) {
     SDL_Event event;
@@ -200,6 +223,14 @@ int main() {
                 VIDEOREG(NV_PTIMER_DENOMINATOR) = ptimer_denominator;
                 break;
 
+              case SDL_CONTROLLER_BUTTON_Y:
+                frame_counter = 0;
+                ptimer_peak_delta = 0;
+                qpc_peak_delta = 0;
+                tsc_peak_delta = 0;
+                alarm_peak_delta = 0;
+                break;
+
               default:
                 break;
             }
@@ -229,36 +260,44 @@ int main() {
 
     clock_state.Update(!freeze_tick_display);
 
-    // Check/Update Alarm
     pb_print("Time Test %lu\n", frame_counter);
-    pb_print("-----------\n");
-    pb_print("PTIMER Time 0:      0x%08X\n",
+    pb_print("PTIMER Time:      0x%08X 0x%08X\n",
+             (clock_state.ptimer_now >> 32),
              (clock_state.ptimer_now & 0xFFFFFFFF));
-    pb_print("PTIMER      1:      0x%08X\n", (clock_state.ptimer_now >> 32));
-    pb_print("TSC         0:      0x%08X\n",
+    pb_print("TSC        :      0x%08X 0x%08X\n", (clock_state.tsc_now >> 32),
              (clock_state.tsc_now & 0xFFFFFFFF));
-    pb_print("TSC         1:      0x%08X\n", (clock_state.tsc_now >> 32));
 
-    pb_print("\nFrame Deltas\n");
-    pb_print("-----------\n");
-    pb_print("PTIMER Delta:       %llu\n", clock_state.ptimer_ticks);
-    pb_print("TSC Delta   :       %llu\n", clock_state.tsc_ticks);
-    pb_print("QPC Delta   :       %llu\n", clock_state.qpc_ticks);
+    pb_print("PTIMER Delta:    %15llu\n", clock_state.ptimer_ticks);
+    pb_print("TSC Delta   :    %15llu\n", clock_state.tsc_ticks);
+    pb_print("QPC Delta   :    %15llu\n", clock_state.qpc_ticks);
+
+    pb_print("Alarm PTIMER : %15llu\n", last_alarm_ptimer_time);
+    pb_print("Alarm TSC    : %15llu\n", last_alarm_tsc_time);
+    pb_print("Alarm dPTIMER: %15llu\n", last_alarm_time_delta);
 
     ptimer_peak_delta = std::max(ptimer_peak_delta, clock_state.ptimer_ticks);
     qpc_peak_delta = std::max(qpc_peak_delta, clock_state.qpc_ticks);
     tsc_peak_delta = std::max(tsc_peak_delta, clock_state.tsc_ticks);
+    alarm_peak_delta = std::max(alarm_peak_delta, last_alarm_time_delta);
 
     if (frame_counter > 10) {
-      pb_print("-----------\n");
-      pb_print("PTIMER Peak:       %llu\n", ptimer_peak_delta);
-      pb_print("TSC Peak   :       %llu\n", tsc_peak_delta);
-      pb_print("QPC Peak   :       %llu\n", qpc_peak_delta);
-
+      pb_print(
+          "PTIMER Peak:   %15llu (%f ms)\n", ptimer_peak_delta,
+          static_cast<double>(ptimer_peak_delta) / kNanosecondsPerMillisecond);
+      pb_print(
+          "TSC Peak   :   %15llu (%f ms)\n", tsc_peak_delta,
+          static_cast<double>(tsc_peak_delta) / kNanosecondsPerMillisecond);
+      pb_print(
+          "QPC Peak   :   %15llu (%f ms)\n", qpc_peak_delta,
+          static_cast<double>(qpc_peak_delta) / kNanosecondsPerMillisecond);
+      pb_print(
+          "Alarm Peak :   %15llu (%f ms)\n", alarm_peak_delta,
+          static_cast<double>(alarm_peak_delta) / kNanosecondsPerMillisecond);
     } else {
       ptimer_peak_delta = 0;
       qpc_peak_delta = 0;
       tsc_peak_delta = 0;
+      alarm_peak_delta = 0;
     }
 
     pb_draw_text_screen();
