@@ -132,6 +132,11 @@ int main() {
   bool running = true;
   bool freeze_tick_display = false;
 
+  uint32_t frame_counter = 0;
+  uint64_t ptimer_peak_delta = 0;
+  uint64_t qpc_peak_delta = 0;
+  uint64_t tsc_peak_delta = 0;
+
   while (running) {
     SDL_Event event;
 
@@ -212,12 +217,20 @@ int main() {
 
     PBKitClearScreen(0);
 
+    // Push a specific command sequence that xemu can use to delay in order to
+    // see the effect on the various clocks.
+    {
+      auto p = pb_begin();
+      p = pb_push1(p, NV097_WAIT_FOR_IDLE, frame_counter++);
+      pb_end(p);
+    }
+
     PBKitBusyWait();
 
     clock_state.Update(!freeze_tick_display);
 
     // Check/Update Alarm
-    pb_print("Time Test\n");
+    pb_print("Time Test %lu\n", frame_counter);
     pb_print("-----------\n");
     pb_print("PTIMER Time 0:      0x%08X\n",
              (clock_state.ptimer_now & 0xFFFFFFFF));
@@ -229,8 +242,24 @@ int main() {
     pb_print("\nFrame Deltas\n");
     pb_print("-----------\n");
     pb_print("PTIMER Delta:       %llu\n", clock_state.ptimer_ticks);
-    pb_print("TSC Delta:          %llu\n", clock_state.tsc_ticks);
-    pb_print("QPC Delta:          %llu\n", clock_state.qpc_ticks);
+    pb_print("TSC Delta   :       %llu\n", clock_state.tsc_ticks);
+    pb_print("QPC Delta   :       %llu\n", clock_state.qpc_ticks);
+
+    ptimer_peak_delta = std::max(ptimer_peak_delta, clock_state.ptimer_ticks);
+    qpc_peak_delta = std::max(qpc_peak_delta, clock_state.qpc_ticks);
+    tsc_peak_delta = std::max(tsc_peak_delta, clock_state.tsc_ticks);
+
+    if (frame_counter > 10) {
+      pb_print("-----------\n");
+      pb_print("PTIMER Peak:       %llu\n", ptimer_peak_delta);
+      pb_print("TSC Peak   :       %llu\n", tsc_peak_delta);
+      pb_print("QPC Peak   :       %llu\n", qpc_peak_delta);
+
+    } else {
+      ptimer_peak_delta = 0;
+      qpc_peak_delta = 0;
+      tsc_peak_delta = 0;
+    }
 
     pb_draw_text_screen();
 
