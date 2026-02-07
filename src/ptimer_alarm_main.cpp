@@ -12,20 +12,24 @@
 
 #include "pbkit_util.h"
 
-// #define VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY
-#define VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
+#define DEFAULT_MODE 0
+#define VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY 1
+#define VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER 2
+
+#define ACTIVE_MODE DEFAULT_MODE
 
 extern "C" volatile DWORD ptimer_alarm_count;
 extern "C" void (*ptimer_alarm_fired_callback)();
 
 static constexpr DWORD kMaxNumeratorDenominator = 0xFFFF;
-// Observed values from Def Jam: Fight for NY
-static constexpr DWORD kTestNumerator = 0xDE86;
-static constexpr DWORD kTestDenominator = 0x1DCD;
+// Observed values from Def Jam: Fight for NY - 7.467033687246035
+static constexpr DWORD kTestNumerator = 0xDE86;    // 56,966
+static constexpr DWORD kTestDenominator = 0x1DCD;  // 7,629
 static constexpr auto kNanosecondsPerSecond = 1000000000.0;
 static constexpr auto kNanosecondsPerMillisecond = 1000000;
 
 static constexpr uint64_t kTicksPerInterval = 16666666;  // ~60 Hz at 1GHz
+static constexpr uint64_t kNV2ACoreFrequency = 233333324;
 
 static inline uint64_t GetPTIMERTime() {
   DWORD now_ptimer = VIDEOREG(NV_PTIMER_TIME_0);
@@ -35,10 +39,29 @@ static inline uint64_t GetPTIMERTime() {
 }
 
 struct ClockState {
-  ClockState() {
+  void Init() {
     QueryPerformanceFrequency(&qpc_frequency);
     QueryPerformanceCounter(&last_qpc);
     last_ptimer = GetPTIMERTime();
+
+    initialized = true;
+  }
+
+  [[nodiscard]] double DeltaQPCNanoseconds(int64_t ticks) const {
+    if (!initialized) {
+      return INFINITY;
+    }
+
+    return ticks * kNanosecondsPerSecond / qpc_frequency.QuadPart;
+  }
+
+  static double DeltaPTIMERNanoseconds(int64_t ticks) {
+    uint32_t numerator = VIDEOREG(NV_PTIMER_NUMERATOR);
+    uint32_t denominator = VIDEOREG(NV_PTIMER_DENOMINATOR);
+
+    auto dticks = static_cast<double>(ticks >> 5);
+    auto gpu_ticks = dticks * numerator / denominator;
+    return gpu_ticks * kNanosecondsPerSecond / kNV2ACoreFrequency;
   }
 
   void Update(bool update_deltas = true) {
@@ -64,11 +87,13 @@ struct ClockState {
     last_ptimer = ptimer_now;
   }
 
-  LARGE_INTEGER qpc_frequency;
-  LARGE_INTEGER last_qpc;
+  bool initialized{false};
+
+  LARGE_INTEGER qpc_frequency{};
+  LARGE_INTEGER last_qpc{};
   uint64_t last_ptimer{0};
 
-  LARGE_INTEGER qpc_now;
+  LARGE_INTEGER qpc_now{};
   uint64_t ptimer_now{0};
 
   uint64_t ptimer_ticks{0};
@@ -78,20 +103,35 @@ struct ClockState {
   double ptimer_ticks_per_qpc_ticks{0.0};
 };
 
-static uint64_t next_alarm_time = 0x00FFFFFF;
+static ClockState clock_state;
+
+static uint64_t next_alarm_time_ptimer = 0x00FFFFFF;
+static uint64_t last_alarm_ptimer_delta = 0;
+static LARGE_INTEGER last_alarm_qpc{};
+static int64_t last_alarm_qpc_delta_ticks = 0;
 static uint32_t alarms_scheduled = 1;
 
-#ifndef VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
+#if ACTIVE_MODE != VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
 static void OnAlarmFired() {
-  next_alarm_time += kTicksPerInterval;
-  VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time);
+  auto now_ptimer = GetPTIMERTime();
+  LARGE_INTEGER now_qpc;
+  QueryPerformanceCounter(&now_qpc);
+
+  last_alarm_ptimer_delta = now_ptimer - next_alarm_time_ptimer;
+  next_alarm_time_ptimer = now_ptimer + kTicksPerInterval;
+  VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time_ptimer);
   alarms_scheduled++;
+
+  if (last_alarm_qpc.QuadPart) {
+    last_alarm_qpc_delta_ticks = now_qpc.QuadPart - last_alarm_qpc.QuadPart;
+  }
+  last_alarm_qpc = now_qpc;
 }
 #endif
 
-#ifdef VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
+#if ACTIVE_MODE == VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
 static void TestTenAlarmCycles() {
-  ClockState clock_state;
+  clock_state.Init();
 
   ptimer_alarm_count = 0;
 
@@ -182,6 +222,8 @@ static void TestAlarmRolloverAndAutoReset() {
 #endif
 
 int main() {
+  clock_state.Init();
+
   debugPrint("Set video mode");
   if (!XVideoSetMode(kFramebufferWidth, kFramebufferHeight, kBitsPerPixel,
                      REFRESH_DEFAULT)) {
@@ -211,16 +253,14 @@ int main() {
   pb_show_front_screen();
   debugClearScreen();
 
-#ifdef VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
+#if ACTIVE_MODE == VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
   TestAlarmRolloverAndAutoReset();
   Sleep(1000);
   pb_kill();
   return 0;
 #else
 
-  ClockState clock_state;
-
-#ifdef VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY
+#if ACTIVE_MODE == VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY
   VIDEOREG(NV_PTIMER_TIME_1) = 1;
   VIDEOREG(NV_PTIMER_ALARM_0) = clock_state.last_ptimer - 1;
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 1;
@@ -249,7 +289,7 @@ int main() {
   uint32_t initial_alarm_count = ptimer_alarm_count;
 
   // Prime the first alarm
-  VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time);
+  VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time_ptimer);
 
   while (running) {
     SDL_Event event;
@@ -319,9 +359,10 @@ int main() {
                 initial_alarm_count = ptimer_alarm_count;
                 alarms_scheduled = 1;
                 clock_state.Update();
-                next_alarm_time = clock_state.ptimer_now + kTicksPerInterval;
+                next_alarm_time_ptimer =
+                    clock_state.ptimer_now + kTicksPerInterval;
                 VIDEOREG(NV_PTIMER_ALARM_0) =
-                    static_cast<uint32_t>(next_alarm_time);
+                    static_cast<uint32_t>(next_alarm_time_ptimer);
                 break;
 
               default:
@@ -365,8 +406,13 @@ int main() {
     pb_print("GPU / CPU factor: %3f\n", clock_state.ptimer_ticks_per_qpc_ticks);
     pb_print("\n");
 
-#if !(defined(VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER) || \
-      defined(VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY))
+#if ACTIVE_MODE == DEFAULT_MODE
+    pb_print("Alarm delta QPC: %15llu ticks %f ns\n",
+             last_alarm_qpc_delta_ticks,
+             clock_state.DeltaQPCNanoseconds(last_alarm_qpc_delta_ticks));
+    pb_print("   delta PTIMER: %15llu ticks %f ns\n", last_alarm_ptimer_delta,
+             clock_state.DeltaPTIMERNanoseconds(last_alarm_ptimer_delta));
+
     pb_print("Drift Test:\n");
     pb_print("Scheduled: %d\n", alarms_scheduled);
     pb_print("Fired:     %d\n", actual_alarms);

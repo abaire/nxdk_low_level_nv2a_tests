@@ -24,6 +24,8 @@ static constexpr auto kNanosecondsPerMillisecond = 1000000;
 
 static constexpr uint64_t kTicksPerInterval = 16666666;  // ~60 Hz at 1GHz
 
+static constexpr uint32_t kTimerSkewTestSeconds = 10;
+
 static inline uint64_t GetPTIMERTime() {
   DWORD now_ptimer = VIDEOREG(NV_PTIMER_TIME_0);
   DWORD now_ptimer_1 = VIDEOREG(NV_PTIMER_TIME_1);
@@ -95,16 +97,64 @@ struct ClockState {
 static uint64_t last_alarm_ptimer_time;
 static uint64_t last_alarm_tsc_time;
 static uint64_t last_alarm_time_delta = 0;
-static uint64_t next_alarm_time = 0;
+static uint64_t next_alarm_time_ptimer = 0;
 
 static void OnAlarmFired() {
   last_alarm_ptimer_time = GetPTIMERTime();
   last_alarm_tsc_time = GetTSCTime();
-  last_alarm_time_delta = last_alarm_ptimer_time - next_alarm_time;
+  last_alarm_time_delta = last_alarm_ptimer_time - next_alarm_time_ptimer;
 
-  next_alarm_time = last_alarm_ptimer_time + kTicksPerInterval;
-  VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time);
+  next_alarm_time_ptimer = last_alarm_ptimer_time + kTicksPerInterval;
+  VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time_ptimer);
 }
+
+struct ClockSkewTestState {
+  void Start(const LARGE_INTEGER& qpc_frequency,
+             uint32_t test_seconds = kTimerSkewTestSeconds) {
+    QueryPerformanceCounter(&qpc_at_start);
+    tsc_at_start = GetTSCTime();
+    ptimer_at_start = GetPTIMERTime();
+    qpc_end_target =
+        qpc_at_start.QuadPart + qpc_frequency.QuadPart * test_seconds;
+    qpc_at_end = 0;
+    tsc_at_end = 0;
+    ptimer_at_end = 0;
+  }
+
+  bool Update() {
+    if (qpc_at_end) {
+      return true;
+    }
+
+    LARGE_INTEGER qpc_now;
+    QueryPerformanceCounter(&qpc_now);
+    if (qpc_now.QuadPart >= qpc_end_target) {
+      tsc_at_end = GetTSCTime();
+      ptimer_at_end = GetPTIMERTime();
+      qpc_at_end = qpc_now.QuadPart;
+      return true;
+    }
+
+    return false;
+  }
+
+  [[nodiscard]] uint64_t QPCDelta() const {
+    return qpc_at_end - qpc_at_start.QuadPart;
+  }
+  [[nodiscard]] uint64_t TSCDelta() const { return tsc_at_end - tsc_at_start; }
+  [[nodiscard]] uint64_t PTIMERDelta() const {
+    return ptimer_at_end - ptimer_at_start;
+  }
+
+  LARGE_INTEGER qpc_at_start{};
+  uint64_t tsc_at_start{0};
+  uint64_t ptimer_at_start{0};
+  uint64_t qpc_end_target{0};
+
+  uint64_t tsc_at_end{0};
+  uint64_t ptimer_at_end{0};
+  uint64_t qpc_at_end{0};
+};
 
 int main() {
   debugPrint("Set video mode");
@@ -159,6 +209,9 @@ int main() {
   uint64_t qpc_peak_delta = 0;
   uint64_t tsc_peak_delta = 0;
   uint64_t alarm_peak_delta = 0;
+
+  ClockSkewTestState skew_test_state;
+  skew_test_state.Start(clock_state.qpc_frequency);
 
   while (running) {
     SDL_Event event;
@@ -229,6 +282,8 @@ int main() {
                 qpc_peak_delta = 0;
                 tsc_peak_delta = 0;
                 alarm_peak_delta = 0;
+
+                skew_test_state.Start(clock_state.qpc_frequency, 60);
                 break;
 
               default:
@@ -248,28 +303,29 @@ int main() {
 
     PBKitClearScreen(0);
 
+#if 0
     // Push a specific command sequence that xemu can use to delay in order to
     // see the effect on the various clocks.
+    // Note that this will trigger an exception on HW
     {
       auto p = pb_begin();
       p = pb_push1(p, NV097_WAIT_FOR_IDLE, frame_counter++);
       pb_end(p);
     }
+#endif
 
     PBKitBusyWait();
 
     clock_state.Update(!freeze_tick_display);
 
     pb_print("Time Test %lu\n", frame_counter);
-    pb_print("PTIMER Time:      0x%08X 0x%08X\n",
+    pb_print("PTIMER Delta : %15llu N: 0x%08X 0x%08X\n",
+             clock_state.ptimer_ticks,
              static_cast<uint32_t>(clock_state.ptimer_now >> 32),
              static_cast<uint32_t>(clock_state.ptimer_now));
-    pb_print("TSC        :      0x%08X 0x%08X\n",
+    pb_print("TSC Delta    : %15llu N: 0x%08X 0x%08X\n", clock_state.tsc_ticks,
              static_cast<uint32_t>(clock_state.tsc_now >> 32),
              static_cast<uint32_t>(clock_state.tsc_now));
-
-    pb_print("PTIMER Delta : %15llu\n", clock_state.ptimer_ticks);
-    pb_print("TSC Delta    : %15llu\n", clock_state.tsc_ticks);
     pb_print("QPC Delta    : %15llu\n", clock_state.qpc_ticks);
 
     pb_print("Alarm PTIMER : %15llu\n", last_alarm_ptimer_time);
@@ -299,6 +355,14 @@ int main() {
       qpc_peak_delta = 0;
       tsc_peak_delta = 0;
       alarm_peak_delta = 0;
+    }
+
+    if (skew_test_state.Update()) {
+      pb_print("QPC at end   : %15llu\n", skew_test_state.QPCDelta());
+      pb_print("TSC at end   : %15llu\n", skew_test_state.TSCDelta());
+      pb_print("PTIMER at end: %15llu\n", skew_test_state.PTIMERDelta());
+    } else {
+      pb_print("Skew test running...\n");
     }
 
     pb_draw_text_screen();
