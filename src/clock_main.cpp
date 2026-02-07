@@ -262,14 +262,15 @@ int main() {
 
     pb_print("Time Test %lu\n", frame_counter);
     pb_print("PTIMER Time:      0x%08X 0x%08X\n",
-             (clock_state.ptimer_now >> 32),
-             (clock_state.ptimer_now & 0xFFFFFFFF));
-    pb_print("TSC        :      0x%08X 0x%08X\n", (clock_state.tsc_now >> 32),
-             (clock_state.tsc_now & 0xFFFFFFFF));
+             static_cast<uint32_t>(clock_state.ptimer_now >> 32),
+             static_cast<uint32_t>(clock_state.ptimer_now));
+    pb_print("TSC        :      0x%08X 0x%08X\n",
+             static_cast<uint32_t>(clock_state.tsc_now >> 32),
+             static_cast<uint32_t>(clock_state.tsc_now));
 
-    pb_print("PTIMER Delta:    %15llu\n", clock_state.ptimer_ticks);
-    pb_print("TSC Delta   :    %15llu\n", clock_state.tsc_ticks);
-    pb_print("QPC Delta   :    %15llu\n", clock_state.qpc_ticks);
+    pb_print("PTIMER Delta : %15llu\n", clock_state.ptimer_ticks);
+    pb_print("TSC Delta    : %15llu\n", clock_state.tsc_ticks);
+    pb_print("QPC Delta    : %15llu\n", clock_state.qpc_ticks);
 
     pb_print("Alarm PTIMER : %15llu\n", last_alarm_ptimer_time);
     pb_print("Alarm TSC    : %15llu\n", last_alarm_tsc_time);
