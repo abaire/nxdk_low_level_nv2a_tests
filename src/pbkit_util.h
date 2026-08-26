@@ -21,7 +21,7 @@ static inline void PBKitFlip() {
   }
 }
 
-static void PBKitClearScreen(uint32_t color) {
+static inline void PBKitClearScreen(uint32_t color) {
   pb_erase_depth_stencil_buffer(0, 0, kFramebufferWidth, kFramebufferHeight);
   pb_fill(0, 0, kFramebufferWidth, kFramebufferHeight, color);
   pb_erase_text_screen();
