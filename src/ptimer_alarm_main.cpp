@@ -4,227 +4,158 @@
 
 #include <SDL.h>
 #include <hal/debug.h>
+#include <hal/fileio.h>
 #include <hal/video.h>
+#include <nxdk/format.h>
+#include <nxdk/mount.h>
 #include <pbkit/pbkit.h>
 #include <windows.h>
 
-#include <algorithm>
+#include <cassert>
+#include <cstring>
+#include <string>
+#include <vector>
 
+#include "logger.h"
 #include "pbkit_util.h"
+#include "ptimer_tests/ptimer_test_common.h"
+#include "ptimer_tests/test_alarm_rearm.h"
+#include "ptimer_tests/test_alarm_rollover_and_periodicity.h"
+#include "ptimer_tests/test_alarm_set_in_the_past.h"
+#include "ptimer_tests/test_alarm_unaligned_target.h"
+#include "ptimer_tests/test_clock_scaling_ratios.h"
+#include "ptimer_tests/test_interrupt_acknowledge.h"
+#include "ptimer_tests/test_interrupt_masking.h"
+#include "ptimer_tests/test_register_bitmasks.h"
+#include "ptimer_tests/test_time_register_read_write.h"
+#include "ptimer_tests/test_time_register_rollover.h"
+#include "ptimer_tests/test_zero_divisor_clock.h"
+#include "test_suite.h"
 
-#define DEFAULT_MODE 0
-#define VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY 1
-#define VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER 2
+#define MAX_FILE_PATH_SIZE 248
 
-#define ACTIVE_MODE DEFAULT_MODE
+static const std::string kLogPath =
+    R"(e:\devkit\nxdk_low_level_nv2a_tests\log.txt)";
 
-extern "C" volatile DWORD ptimer_alarm_count;
-extern "C" void (*ptimer_alarm_fired_callback)();
-
-static constexpr DWORD kMaxNumeratorDenominator = 0xFFFF;
-// Observed values from Def Jam: Fight for NY - 7.467033687246035
-static constexpr DWORD kTestNumerator = 0xDE86;    // 56,966
-static constexpr DWORD kTestDenominator = 0x1DCD;  // 7,629
-static constexpr auto kNanosecondsPerSecond = 1000000000.0;
-static constexpr auto kNanosecondsPerMillisecond = 1000000;
-
-static constexpr uint64_t kTicksPerInterval = 16666666;  // ~60 Hz at 1GHz
-static constexpr uint64_t kNV2ACoreFrequency = 233333324;
-
-static inline uint64_t GetPTIMERTime() {
-  DWORD now_ptimer = VIDEOREG(NV_PTIMER_TIME_0);
-  DWORD now_ptimer_1 = VIDEOREG(NV_PTIMER_TIME_1);
-
-  return (static_cast<uint64_t>(now_ptimer_1) << 32) + now_ptimer;
-}
-
-struct ClockState {
-  void Init() {
-    QueryPerformanceFrequency(&qpc_frequency);
-    QueryPerformanceCounter(&last_qpc);
-    last_ptimer = GetPTIMERTime();
-
-    initialized = true;
-  }
-
-  [[nodiscard]] double DeltaQPCNanoseconds(int64_t ticks) const {
-    if (!initialized) {
-      return INFINITY;
-    }
-
-    return ticks * kNanosecondsPerSecond / qpc_frequency.QuadPart;
-  }
-
-  static double DeltaPTIMERNanoseconds(int64_t ticks) {
-    uint32_t numerator = VIDEOREG(NV_PTIMER_NUMERATOR);
-    uint32_t denominator = VIDEOREG(NV_PTIMER_DENOMINATOR);
-
-    auto dticks = static_cast<double>(ticks >> 5);
-    auto gpu_ticks = dticks * numerator / denominator;
-    return gpu_ticks * kNanosecondsPerSecond / kNV2ACoreFrequency;
-  }
-
-  void Update(bool update_deltas = true) {
-    ptimer_now = GetPTIMERTime();
-    QueryPerformanceCounter(&qpc_now);
-
-    if (!update_deltas) {
-      return;
-    }
-
-    qpc_ticks = qpc_now.QuadPart - last_qpc.QuadPart;
-    qpc_nanoseconds = static_cast<double>(qpc_ticks * kNanosecondsPerSecond) /
-                      qpc_frequency.QuadPart;
-
-    ptimer_ticks = ptimer_now - last_ptimer;
-    double elapsed_sec = (double)qpc_ticks / qpc_frequency.QuadPart;
-    mhz = (elapsed_sec > 0) ? ((double)ptimer_ticks / elapsed_sec / 1000000.0)
-                            : 0.0;
-
-    ptimer_ticks_per_qpc_ticks = static_cast<double>(ptimer_ticks) / qpc_ticks;
-
-    last_qpc = qpc_now;
-    last_ptimer = ptimer_now;
-  }
-
-  bool initialized{false};
-
-  LARGE_INTEGER qpc_frequency{};
-  LARGE_INTEGER last_qpc{};
-  uint64_t last_ptimer{0};
-
-  LARGE_INTEGER qpc_now{};
-  uint64_t ptimer_now{0};
-
-  uint64_t ptimer_ticks{0};
-  uint64_t qpc_ticks{0};
-  uint64_t qpc_nanoseconds{0};
-  double mhz{0.0};
-  double ptimer_ticks_per_qpc_ticks{0.0};
+static constexpr TestCase kTests[] = {
+    TestCase::From<TestAlarmRearm>(),
+    TestCase::From<TestAlarmRolloverAndPeriodicity>(),
+    TestCase::From<TestAlarmSetInThePast>(),
+    TestCase::From<TestAlarmUnalignedTarget>(),
+    TestCase::From<TestRegisterBitmasks>(),
+    TestCase::From<TestInterruptMasking>(),
+    TestCase::From<TestInterruptAcknowledge>(),
+    TestCase::From<TestTimeRegisterReadWrite>(),
+    TestCase::From<TestTimeRegisterRollover>(),
+    TestCase::From<TestClockScalingRatios>(),
+    TestCase::From<TestZeroDivisorClock>(),
 };
 
-static ClockState clock_state;
-
-static uint64_t next_alarm_time_ptimer = 0x00FFFFFF;
-static uint64_t last_alarm_ptimer_delta = 0;
-static LARGE_INTEGER last_alarm_qpc{};
-static int64_t last_alarm_qpc_delta_ticks = 0;
-static uint32_t alarms_scheduled = 1;
-
-#if ACTIVE_MODE != VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
-static void OnAlarmFired() {
-  auto now_ptimer = GetPTIMERTime();
-  LARGE_INTEGER now_qpc;
-  QueryPerformanceCounter(&now_qpc);
-
-  last_alarm_ptimer_delta = now_ptimer - next_alarm_time_ptimer;
-  next_alarm_time_ptimer = now_ptimer + kTicksPerInterval;
-  VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time_ptimer);
-  alarms_scheduled++;
-
-  if (last_alarm_qpc.QuadPart) {
-    last_alarm_qpc_delta_ticks = now_qpc.QuadPart - last_alarm_qpc.QuadPart;
+static void EnsureFolderExists(const std::string& folder_path) {
+  if (folder_path.length() > MAX_FILE_PATH_SIZE) {
+    assert(!"Folder Path is too long.");
   }
-  last_alarm_qpc = now_qpc;
-}
-#endif
 
-#if ACTIVE_MODE == VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
-static void TestTenAlarmCycles() {
-  clock_state.Init();
+  char buffer[MAX_FILE_PATH_SIZE + 1] = {0};
+  const char* path_start = folder_path.c_str();
+  const char* slash = strchr(path_start, '\\');
+  if (slash) {
+    slash = strchr(slash + 1, '\\');
+  }
 
-  ptimer_alarm_count = 0;
-
-  static constexpr auto kAlarmScheduleMilliseconds = 32;
-  static constexpr auto kAlarmScheduleNanoseconds =
-      kAlarmScheduleMilliseconds * kNanosecondsPerMillisecond;
-
-  // Force the clock to a known starting point that will require wraparound.
-  static constexpr auto kTestTimerStartHigh = 5;
-  clock_state.ptimer_now = (static_cast<uint64_t>(kTestTimerStartHigh) << 32) +
-                           (0xFFFFFFFF - (kAlarmScheduleNanoseconds / 2));
-
-  // Schedule an alarm
-  uint32_t time_1 = clock_state.ptimer_now >> 32;
-  VIDEOREG(NV_PTIMER_TIME_1) = time_1;
-  VIDEOREG(NV_PTIMER_TIME_0) = clock_state.ptimer_now & 0xFFFFFFFF;
-
-  const uint32_t alarm_time =
-      clock_state.ptimer_now + kAlarmScheduleNanoseconds;
-  VIDEOREG(NV_PTIMER_ALARM_0) = alarm_time;
-
-  DbgPrint("PTIMER clock setup: 0x%X / 0x%X\n", VIDEOREG(NV_PTIMER_NUMERATOR),
-           VIDEOREG(NV_PTIMER_DENOMINATOR));
-  DbgPrint(
-      "Current time is 0x%X 0x%X, alarm at 0x%X (init 0x%X, 0x%X delta) alarm "
-      "count "
-      "%d\n",
-      VIDEOREG(NV_PTIMER_TIME_1), VIDEOREG(NV_PTIMER_TIME_0),
-      VIDEOREG(NV_PTIMER_ALARM_0), alarm_time,
-      0xFFFFFFFF - static_cast<uint32_t>(clock_state.ptimer_now) + alarm_time,
-      ptimer_alarm_count);
-
-  VIDEOREG(NV_PTIMER_INTR_EN_0) = 1;
-
-  uint32_t last_alarm_count = ptimer_alarm_count;
-  uint32_t last_alarm_val = 0;
-  uint32_t last_alarm_time_0 = 0;
-  uint32_t last_alarm_time_1 = 0;
-
-  while (ptimer_alarm_count < 10) {
-    if (ptimer_alarm_count == last_alarm_count) {
-      continue;
+  while (slash) {
+    strncpy(buffer, path_start, slash - path_start);
+    buffer[slash - path_start] = 0;
+    if (!CreateDirectory(buffer, nullptr) &&
+        GetLastError() != ERROR_ALREADY_EXISTS) {
+      assert(!"Failed to create output directory.");
     }
 
-    uint32_t now_0 = VIDEOREG(NV_PTIMER_TIME_0);
-    uint32_t now_1 = VIDEOREG(NV_PTIMER_TIME_1);
-    uint32_t now_alarm = VIDEOREG(NV_PTIMER_ALARM_0);
+    slash = strchr(slash + 1, '\\');
+  }
 
-    DbgPrint("  > Alarm count %d  time 0x%X 0x%X alarm reg: 0x%X init 0x%X\n",
-             ptimer_alarm_count, now_1, now_0, now_alarm, alarm_time);
-    if (last_alarm_val || last_alarm_time_0 || last_alarm_time_1) {
-      DbgPrint("    Delta high: 0x%X low: 0x%X alarm: 0x%X\n",
-               now_1 - last_alarm_time_1, now_0 - last_alarm_time_0,
-               now_alarm - last_alarm_val);
+  // Handle case where there was no trailing slash.
+  if (!CreateDirectory(path_start, nullptr) &&
+      GetLastError() != ERROR_ALREADY_EXISTS) {
+    assert(!"Failed to create output directory.");
+  }
+}
+
+static bool EnsureDriveMounted(char drive_letter, bool format = false) {
+  if (nxIsDriveMounted(drive_letter)) {
+    return true;
+  }
+
+  char dos_path[4] = "x:\\";
+  dos_path[0] = drive_letter;
+  char device_path[256] = {0};
+  if (XConvertDOSFilenameToXBOX(dos_path, device_path) != STATUS_SUCCESS) {
+    return false;
+  }
+
+  if (!strstr(device_path, R"(\Device\Harddisk0\Partition)")) {
+    return false;
+  }
+  device_path[28] = 0;
+
+  if (format) {
+    char last_char = device_path[27];
+    if (last_char != '3' && last_char != '4' && last_char != '5') {
+      return false;
     }
-
-    last_alarm_count = ptimer_alarm_count;
-    last_alarm_val = now_alarm;
-    last_alarm_time_0 = now_0;
-    last_alarm_time_1 = now_1;
+    if (!nxFormatVolume(device_path, 0)) {
+      return false;
+    }
   }
-  auto end_time_1 = VIDEOREG(NV_PTIMER_TIME_1);
-  auto end_time_0 = VIDEOREG(NV_PTIMER_TIME_0);
 
-  VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
-
-  DbgPrint("  ! Alarm count %d  time 0x%X 0x%X. Was scheduled with 0x%X 0x%X\n",
-           ptimer_alarm_count, end_time_1, end_time_0, kTestTimerStartHigh,
-           alarm_time);
-
-  if (VIDEOREG(NV_PTIMER_ALARM_0) != alarm_time) {
-    DbgPrint("!!! ALARM_0 was modified: 0x%X != scheduled 0x%X\n",
-             VIDEOREG(NV_PTIMER_ALARM_0), alarm_time);
-  }
+  return nxMountDrive(drive_letter, device_path);
 }
 
-static void TestAlarmRolloverAndAutoReset() {
-  DWORD ptimer_numerator = kTestNumerator;
-  DWORD ptimer_denominator = kTestDenominator;
-  VIDEOREG(NV_PTIMER_NUMERATOR) = ptimer_numerator;
-  VIDEOREG(NV_PTIMER_DENOMINATOR) = ptimer_denominator;
-  TestTenAlarmCycles();
+static void RenderLogScreen() {
+  pb_wait_for_vbl();
+  pb_reset();
+  pb_target_back_buffer();
+  PBKitClearScreen(0);
+  pb_print("  NV2A PTIMER Hardware Validation Suite\n");
+  pb_print("============================================================\n\n");
 
-  VIDEOREG(NV_PTIMER_NUMERATOR) = 1000;
-  VIDEOREG(NV_PTIMER_DENOMINATOR) = 100;
-  TestTenAlarmCycles();
+  const auto& log = GetOnScreenLog();
+  for (const auto& line : log) {
+    pb_print("%s\n", line.c_str());
+  }
+
+  pb_draw_text_screen();
+  PBKitBusyWait();
+  PBKitFlip();
 }
-#endif
+
+static void RunAllTests() {
+  std::vector<bool> results;
+  results.reserve(std::size(kTests));
+
+  for (const auto& test : kTests) {
+    bool result = test.test_function();
+    results.push_back(result);
+    RenderLogScreen();
+  }
+
+  pb_erase_text_screen();
+  ClearOnScreenLog();
+
+  for (size_t i = 0; i < std::size(kTests); ++i) {
+    LogMsg("  %2d %-28s : %s\n", i + 1, kTests[i].name,
+           results[i] ? "PASS" : "FAIL");
+  }
+  LogMsg("See %s\n\n", kLogPath.c_str());
+}
+
+enum class AppMode {
+  LOG_VIEW,
+  LIVE_MONITOR,
+};
 
 int main() {
-  clock_state.Init();
-
-  debugPrint("Set video mode");
+  debugPrint("Setting video mode...\n");
   if (!XVideoSetMode(kFramebufferWidth, kFramebufferHeight, kBitsPerPixel,
                      REFRESH_DEFAULT)) {
     debugPrint("Failed to set video mode\n");
@@ -239,138 +170,82 @@ int main() {
     return 1;
   }
 
-  debugPrint("Initializing...");
-  pb_show_debug_screen();
-
+  debugPrint("Initializing SDL Game Controller...\n");
   if (SDL_Init(SDL_INIT_GAMECONTROLLER)) {
-    debugPrint("Failed to initialize SDL_GAMECONTROLLER.");
-    debugPrint("%s", SDL_GetError());
-    pb_show_debug_screen();
-    Sleep(2000);
-    return 1;
+    debugPrint("Failed to initialize SDL: %s\n", SDL_GetError());
   }
+
+  debugPrint("Mounting Drive E: for log output...\n");
+  if (EnsureDriveMounted('E', false)) {
+    size_t last_slash = kLogPath.find_last_of("\\/");
+    if (last_slash != std::string::npos) {
+      EnsureFolderExists(kLogPath.substr(0, last_slash));
+    }
+    Logger::Initialize(kLogPath, true);
+    LogMsg("Mounted Drive E: and initialized log at %s\n", kLogPath.c_str());
+  } else {
+    DbgPrint("WARNING: Failed to mount Drive E:! Disk logging disabled.\n");
+  }
+
+  g_clock_state.Init();
+
+  VIDEOREG(NV_PTIMER_NUMERATOR) = kTestNumerator;
+  VIDEOREG(NV_PTIMER_DENOMINATOR) = kTestDenominator;
+
+  AppMode mode = AppMode::LOG_VIEW;
+  bool running = true;
 
   pb_show_front_screen();
   debugClearScreen();
 
-#if ACTIVE_MODE == VERIFY_BEHAVIOR_OF_ALARM_ROLLOVER
-  TestAlarmRolloverAndAutoReset();
-  Sleep(1000);
-  pb_kill();
-  return 0;
-#else
+  pb_wait_for_vbl();
+  pb_reset();
+  pb_target_back_buffer();
+  PBKitClearScreen(0);
+  pb_print("  NV2A PTIMER Hardware Validation Suite\n");
+  pb_print("============================================================\n\n");
+  pb_print("Testing (this may take some time)...\n");
+  pb_draw_text_screen();
+  PBKitBusyWait();
+  PBKitFlip();
 
-#if ACTIVE_MODE == VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY
-  VIDEOREG(NV_PTIMER_TIME_1) = 1;
-  VIDEOREG(NV_PTIMER_ALARM_0) = clock_state.last_ptimer - 1;
-  VIDEOREG(NV_PTIMER_INTR_EN_0) = 1;
-
-  Sleep(50);  // Wait for potential interrupt
-
-  VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
-#else
-  ptimer_alarm_fired_callback = OnAlarmFired;
-
-  VIDEOREG(NV_PTIMER_TIME_1) = 1;
-  VIDEOREG(NV_PTIMER_ALARM_0) =
-      (clock_state.last_ptimer + 100000000) & 0xFFFFFFFF;
-  VIDEOREG(NV_PTIMER_INTR_EN_0) = 1;
-#endif  // VERIFY_ALARM_SET_IN_THE_PAST_FIRES_IMMEDIATELY
-
-  DWORD ptimer_numerator = kTestNumerator;
-  DWORD ptimer_denominator = kTestDenominator;
-  VIDEOREG(NV_PTIMER_NUMERATOR) = ptimer_numerator;
-  VIDEOREG(NV_PTIMER_DENOMINATOR) = ptimer_denominator;
-
-  bool running = true;
-  bool freeze_tick_display = false;
-
-  // Alarm Test State
-  uint32_t initial_alarm_count = ptimer_alarm_count;
-
-  // Prime the first alarm
-  VIDEOREG(NV_PTIMER_ALARM_0) = static_cast<uint32_t>(next_alarm_time_ptimer);
+  LogMsg("Running test suite...\n");
+  RunAllTests();
 
   while (running) {
     SDL_Event event;
-
     while (SDL_PollEvent(&event)) {
       switch (event.type) {
         case SDL_CONTROLLERDEVICEADDED: {
-          SDL_GameController* controller =
-              SDL_GameControllerOpen(event.cdevice.which);
-          if (!controller) {
-            debugPrint("Failed to handle controller add event.");
-            debugPrint("%s", SDL_GetError());
-            running = false;
-          }
+          SDL_GameControllerOpen(event.cdevice.which);
         } break;
-
         case SDL_CONTROLLERDEVICEREMOVED: {
           SDL_GameController* controller =
               SDL_GameControllerFromInstanceID(event.cdevice.which);
-          SDL_GameControllerClose(controller);
+          if (controller) SDL_GameControllerClose(controller);
         } break;
-
         case SDL_CONTROLLERBUTTONUP: {
-          auto& button = event.cbutton;
-          if (button.state == SDL_RELEASED) {
-            switch (static_cast<SDL_GameControllerButton>(button.button)) {
-              case SDL_CONTROLLER_BUTTON_DPAD_UP:
-                ptimer_numerator =
-                    std::min(ptimer_numerator * 10, kMaxNumeratorDenominator);
-                VIDEOREG(NV_PTIMER_NUMERATOR) = ptimer_numerator;
-                break;
+          if (event.cbutton.state == SDL_RELEASED) {
+            auto btn =
+                static_cast<SDL_GameControllerButton>(event.cbutton.button);
 
-              case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-                ptimer_numerator = std::max(ptimer_numerator / 10, 1UL);
-                VIDEOREG(NV_PTIMER_NUMERATOR) = ptimer_numerator;
-                break;
+            if (btn == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER ||
+                btn == SDL_CONTROLLER_BUTTON_START) {
+              running = false;
+            }
 
-              case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-                ptimer_denominator = std::max(ptimer_denominator / 10, 1UL);
-                VIDEOREG(NV_PTIMER_DENOMINATOR) = ptimer_denominator;
-                break;
-
-              case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-                ptimer_denominator =
-                    std::min(ptimer_denominator * 10, kMaxNumeratorDenominator);
-                VIDEOREG(NV_PTIMER_DENOMINATOR) = ptimer_denominator;
-                break;
-
-              case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
-                running = false;
-                break;
-
-              case SDL_CONTROLLER_BUTTON_A:
-                freeze_tick_display = !freeze_tick_display;
-                break;
-
-              case SDL_CONTROLLER_BUTTON_X:
-                // Observed values from Def Jam: Fight for NY
-                ptimer_numerator = 0xDE86;
-                ptimer_denominator = 0x1DCD;
-                VIDEOREG(NV_PTIMER_NUMERATOR) = ptimer_numerator;
-                VIDEOREG(NV_PTIMER_DENOMINATOR) = ptimer_denominator;
-                break;
-
-              case SDL_CONTROLLER_BUTTON_Y:
-                // Reset Test
-                initial_alarm_count = ptimer_alarm_count;
-                alarms_scheduled = 1;
-                clock_state.Update();
-                next_alarm_time_ptimer =
-                    clock_state.ptimer_now + kTicksPerInterval;
-                VIDEOREG(NV_PTIMER_ALARM_0) =
-                    static_cast<uint32_t>(next_alarm_time_ptimer);
-                break;
-
-              default:
-                break;
+            if (mode == AppMode::LOG_VIEW) {
+              if (btn == SDL_CONTROLLER_BUTTON_Y) {
+                mode = AppMode::LIVE_MONITOR;
+              }
+            } else if (mode == AppMode::LIVE_MONITOR) {
+              if (btn == SDL_CONTROLLER_BUTTON_B ||
+                  btn == SDL_CONTROLLER_BUTTON_BACK) {
+                mode = AppMode::LOG_VIEW;
+              }
             }
           }
         } break;
-
         default:
           break;
       }
@@ -379,53 +254,54 @@ int main() {
     pb_wait_for_vbl();
     pb_reset();
     pb_target_back_buffer();
-
     PBKitClearScreen(0);
 
-    PBKitBusyWait();
+    g_clock_state.Update();
 
-    clock_state.Update(!freeze_tick_display);
+    if (mode == AppMode::LOG_VIEW) {
+      pb_print("  NV2A PTIMER Hardware Validation Suite\n");
+      pb_print("Log file: %s\n\n", kLogPath.c_str());
 
-    // Check/Update Alarm
-    uint32_t actual_alarms = ptimer_alarm_count - initial_alarm_count;
+      const auto& log = GetOnScreenLog();
+      for (const auto& line : log) {
+        pb_print("%s\n", line.c_str());
+      }
 
-    pb_print("PTIMER Test\n");
-    pb_print("-----------\n");
-    pb_print("Alarm Reg:   0x%X\n", VIDEOREG(NV_PTIMER_ALARM_0));
-    pb_print("Alarm Count: %d\n", ptimer_alarm_count);
-    pb_print("Time 0:      0x%X\n", (clock_state.ptimer_now & 0xFFFFFFFF));
-    pb_print("Time 1:      0x%X\n", (clock_state.ptimer_now >> 32));
-    pb_print("\n");
-    pb_print("Scaling Validation (Num=%d, Den=%d %f)\n", ptimer_numerator,
-             ptimer_denominator,
-             static_cast<float>(ptimer_numerator) / ptimer_denominator);
-    pb_print("GPU Ticks: %15llu - rate: %.2f MHz\n", clock_state.ptimer_ticks,
-             clock_state.mhz);
-    pb_print("CPU ticks: %15llu - nanos: %10llu\n", clock_state.qpc_ticks,
-             clock_state.qpc_nanoseconds);
-    pb_print("GPU / CPU factor: %3f\n", clock_state.ptimer_ticks_per_qpc_ticks);
-    pb_print("\n");
+      pb_print("\n[Y] Live Monitor      [Black] Exit\n");
+    } else if (mode == AppMode::LIVE_MONITOR) {
+      pb_print("  PTIMER Live Monitor Mode\n");
 
-#if ACTIVE_MODE == DEFAULT_MODE
-    pb_print("Alarm delta QPC: %15llu ticks %f ns\n",
-             last_alarm_qpc_delta_ticks,
-             clock_state.DeltaQPCNanoseconds(last_alarm_qpc_delta_ticks));
-    pb_print("   delta PTIMER: %15llu ticks %f ns\n", last_alarm_ptimer_delta,
-             clock_state.DeltaPTIMERNanoseconds(last_alarm_ptimer_delta));
+      uint32_t t0 = VIDEOREG(NV_PTIMER_TIME_0);
+      uint32_t t1 = VIDEOREG(NV_PTIMER_TIME_1);
+      uint32_t alarm = VIDEOREG(NV_PTIMER_ALARM_0);
+      uint32_t intr = VIDEOREG(NV_PTIMER_INTR_0);
+      uint32_t intr_en = VIDEOREG(NV_PTIMER_INTR_EN_0);
+      uint32_t num = VIDEOREG(NV_PTIMER_NUMERATOR);
+      uint32_t den = VIDEOREG(NV_PTIMER_DENOMINATOR);
 
-    pb_print("Drift Test:\n");
-    pb_print("Scheduled: %d\n", alarms_scheduled);
-    pb_print("Fired:     %d\n", actual_alarms);
-    pb_print("Diff:      %d\n", (int)(alarms_scheduled - actual_alarms));
-#endif
+      pb_print("PTIMER_TIME_1 : 0x%08X (High 29 bits)\n", t1);
+      pb_print("PTIMER_TIME_0 : 0x%08X (Low 27 bits << 5)\n", t0);
+      pb_print("PTIMER_ALARM_0: 0x%08X\n", alarm);
+      pb_print("INTR_0 (Status): 0x%08X  |  INTR_EN_0 (Mask): 0x%08X\n", intr,
+               intr_en);
+      pb_print("NUMERATOR     : %u (0x%X) |  DENOMINATOR : %u (0x%X)\n\n", num,
+               num, den, den);
+
+      pb_print("Alarm Count   : %u\n", ptimer_alarm_count);
+      pb_print("PTIMER MHz    : %.2f MHz\n", g_clock_state.mhz);
+      pb_print("PTIMER Ticks  : %llu\n", g_clock_state.ptimer_ticks);
+      pb_print("CPU QPC Ticks : %llu (%.3f ms)\n", g_clock_state.qpc_ticks,
+               g_clock_state.qpc_nanoseconds / 1000000.0);
+
+      pb_print("\n[B] Return to Summary\n");
+      pb_print("[Black] Exit\n");
+    }
 
     pb_draw_text_screen();
-
     PBKitBusyWait();
     PBKitFlip();
   }
 
   pb_kill();
   return 0;
-#endif
 }

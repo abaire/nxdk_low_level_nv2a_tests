@@ -119,6 +119,33 @@ create_test_xiso(
         ptimer_alarm_main.cpp
         pbkit_util.cpp
         pbkit_util.h
+        logger.cpp
+        logger.h
+        test_suite.h
+        ptimer_tests/ptimer_test_common.cpp
+        ptimer_tests/ptimer_test_common.h
+        ptimer_tests/test_alarm_rearm.cpp
+        ptimer_tests/test_alarm_rearm.h
+        ptimer_tests/test_alarm_rollover_and_periodicity.cpp
+        ptimer_tests/test_alarm_rollover_and_periodicity.h
+        ptimer_tests/test_alarm_set_in_the_past.cpp
+        ptimer_tests/test_alarm_set_in_the_past.h
+        ptimer_tests/test_alarm_unaligned_target.cpp
+        ptimer_tests/test_alarm_unaligned_target.h
+        ptimer_tests/test_clock_scaling_ratios.cpp
+        ptimer_tests/test_clock_scaling_ratios.h
+        ptimer_tests/test_interrupt_acknowledge.cpp
+        ptimer_tests/test_interrupt_acknowledge.h
+        ptimer_tests/test_interrupt_masking.cpp
+        ptimer_tests/test_interrupt_masking.h
+        ptimer_tests/test_register_bitmasks.cpp
+        ptimer_tests/test_register_bitmasks.h
+        ptimer_tests/test_time_register_read_write.cpp
+        ptimer_tests/test_time_register_read_write.h
+        ptimer_tests/test_time_register_rollover.cpp
+        ptimer_tests/test_time_register_rollover.h
+        ptimer_tests/test_zero_divisor_clock.cpp
+        ptimer_tests/test_zero_divisor_clock.h
 )
 
 # pfifo_cache1_test
