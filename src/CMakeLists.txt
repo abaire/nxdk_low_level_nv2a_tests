@@ -130,8 +130,12 @@ create_test_xiso(
         ptimer_tests/test_alarm_rollover_and_periodicity.h
         ptimer_tests/test_alarm_set_in_the_past.cpp
         ptimer_tests/test_alarm_set_in_the_past.h
+        ptimer_tests/test_alarm_target_zero.cpp
+        ptimer_tests/test_alarm_target_zero.h
         ptimer_tests/test_alarm_unaligned_target.cpp
         ptimer_tests/test_alarm_unaligned_target.h
+        ptimer_tests/test_alarm_unprogrammed.cpp
+        ptimer_tests/test_alarm_unprogrammed.h
         ptimer_tests/test_clock_scaling_ratios.cpp
         ptimer_tests/test_clock_scaling_ratios.h
         ptimer_tests/test_interrupt_acknowledge.cpp
