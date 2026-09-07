@@ -24,7 +24,9 @@
 #include "ptimer_tests/test_alarm_rearm.h"
 #include "ptimer_tests/test_alarm_rollover_and_periodicity.h"
 #include "ptimer_tests/test_alarm_set_in_the_past.h"
+#include "ptimer_tests/test_alarm_target_zero.h"
 #include "ptimer_tests/test_alarm_unaligned_target.h"
+#include "ptimer_tests/test_alarm_unprogrammed.h"
 #include "ptimer_tests/test_clock_scaling_ratios.h"
 #include "ptimer_tests/test_interrupt_acknowledge.h"
 #include "ptimer_tests/test_interrupt_masking.h"
@@ -40,6 +42,8 @@ static const std::string kLogPath =
     R"(e:\devkit\nxdk_low_level_nv2a_tests\log.txt)";
 
 static constexpr TestCase kTests[] = {
+    TestCase::From<TestAlarmUnprogrammed>(),
+    TestCase::From<TestAlarmTargetZero>(),
     TestCase::From<TestAlarmRearm>(),
     TestCase::From<TestAlarmRolloverAndPeriodicity>(),
     TestCase::From<TestAlarmSetInThePast>(),
@@ -159,6 +163,8 @@ enum class AppMode {
 };
 
 int main() {
+  RunPreInitBootAlarmTest();
+
   debugPrint("Setting video mode...\n");
   if (!XVideoSetMode(kFramebufferWidth, kFramebufferHeight, kBitsPerPixel,
                      REFRESH_DEFAULT)) {

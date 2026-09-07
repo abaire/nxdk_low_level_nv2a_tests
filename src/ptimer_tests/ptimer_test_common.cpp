@@ -7,6 +7,7 @@
 #include "printf/printf.h"
 
 ClockState g_clock_state;
+BootPTIMERState g_boot_ptimer_state;
 AlarmCapture g_alarm_captures[kMaxAlarmCaptures];
 volatile size_t g_alarm_capture_count = 0;
 
@@ -112,4 +113,58 @@ void ClockState::Update(bool update_deltas) {
   last_qpc = qpc_now;
   last_ptimer = ptimer_now;
   last_tsc = tsc_now;
+}
+
+void RunPreInitBootAlarmTest() {
+  g_boot_ptimer_state.alarm_0 = VIDEOREG(NV_PTIMER_ALARM_0);
+  g_boot_ptimer_state.intr_en_0 = VIDEOREG(NV_PTIMER_INTR_EN_0);
+  g_boot_ptimer_state.intr_0 = VIDEOREG(NV_PTIMER_INTR_0);
+  g_boot_ptimer_state.time_0 = VIDEOREG(NV_PTIMER_TIME_0);
+  g_boot_ptimer_state.time_1 = VIDEOREG(NV_PTIMER_TIME_1);
+  g_boot_ptimer_state.numerator = VIDEOREG(NV_PTIMER_NUMERATOR);
+  g_boot_ptimer_state.denominator = VIDEOREG(NV_PTIMER_DENOMINATOR);
+
+  VIDEOREG(NV_PTIMER_INTR_0) = 1;
+  g_boot_ptimer_state.intr_0_cleared = (VIDEOREG(NV_PTIMER_INTR_0) & 1) == 0;
+
+  uint32_t target_alarm = g_boot_ptimer_state.alarm_0;
+  static constexpr uint32_t kOffset = 0x01000000;
+  uint32_t start_time = (target_alarm - kOffset) & ALARM_MASK;
+  VIDEOREG(NV_PTIMER_TIME_0) = start_time;
+
+  LARGE_INTEGER qpc_start, qpc_now, qpc_freq;
+  QueryPerformanceFrequency(&qpc_freq);
+  QueryPerformanceCounter(&qpc_start);
+
+  while (true) {
+    uint32_t intr = VIDEOREG(NV_PTIMER_INTR_0);
+    if ((intr & 1) != 0) {
+      g_boot_ptimer_state.alarm_latched = true;
+      g_boot_ptimer_state.time_0_latched = VIDEOREG(NV_PTIMER_TIME_0);
+      g_boot_ptimer_state.jitter = static_cast<int32_t>(
+          g_boot_ptimer_state.time_0_latched - target_alarm);
+      break;
+    }
+
+    uint32_t delta = VIDEOREG(NV_PTIMER_TIME_0) - start_time;
+    if (delta > (kOffset + 0x01000000)) {
+      break;
+    }
+
+    QueryPerformanceCounter(&qpc_now);
+    double elapsed_ms =
+        static_cast<double>(qpc_now.QuadPart - qpc_start.QuadPart) * 1000.0 /
+        qpc_freq.QuadPart;
+    if (elapsed_ms >= 500.0) {
+      break;
+    }
+  }
+
+  QueryPerformanceCounter(&qpc_now);
+  g_boot_ptimer_state.elapsed_ms =
+      static_cast<double>(qpc_now.QuadPart - qpc_start.QuadPart) * 1000.0 /
+      qpc_freq.QuadPart;
+  g_boot_ptimer_state.pre_init_tested = true;
+
+  VIDEOREG(NV_PTIMER_INTR_0) = 1;
 }

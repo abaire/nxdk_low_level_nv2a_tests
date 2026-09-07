@@ -89,4 +89,25 @@ struct ClockState {
 
 extern ClockState g_clock_state;
 
+struct BootPTIMERState {
+  uint32_t alarm_0{0};
+  uint32_t intr_en_0{0};
+  uint32_t intr_0{0};
+  uint32_t time_0{0};
+  uint32_t time_1{0};
+  uint32_t numerator{0};
+  uint32_t denominator{0};
+
+  bool intr_0_cleared{false};
+  bool alarm_latched{false};
+  uint32_t time_0_latched{0};
+  int32_t jitter{0};
+  double elapsed_ms{0.0};
+  bool pre_init_tested{false};
+};
+
+extern BootPTIMERState g_boot_ptimer_state;
+
+void RunPreInitBootAlarmTest();
+
 #endif  // NXDK_LOW_LEVEL_NV2A_TESTS_PTIMER_TEST_COMMON_H
