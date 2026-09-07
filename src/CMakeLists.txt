@@ -138,6 +138,10 @@ create_test_xiso(
         ptimer_tests/test_interrupt_acknowledge.h
         ptimer_tests/test_interrupt_masking.cpp
         ptimer_tests/test_interrupt_masking.h
+        ptimer_tests/test_alarm_flag_is_set_while_masked.cpp
+        ptimer_tests/test_alarm_flag_is_set_while_masked.h
+        ptimer_tests/test_alarm_flag_is_set_while_masked_reset_time.cpp
+        ptimer_tests/test_alarm_flag_is_set_while_masked_reset_time.h
         ptimer_tests/test_register_bitmasks.cpp
         ptimer_tests/test_register_bitmasks.h
         ptimer_tests/test_time_register_read_write.cpp

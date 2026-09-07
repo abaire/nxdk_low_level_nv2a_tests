@@ -19,6 +19,8 @@
 #include "logger.h"
 #include "pbkit_util.h"
 #include "ptimer_tests/ptimer_test_common.h"
+#include "ptimer_tests/test_alarm_flag_is_set_while_masked.h"
+#include "ptimer_tests/test_alarm_flag_is_set_while_masked_reset_time.h"
 #include "ptimer_tests/test_alarm_rearm.h"
 #include "ptimer_tests/test_alarm_rollover_and_periodicity.h"
 #include "ptimer_tests/test_alarm_set_in_the_past.h"
@@ -44,6 +46,8 @@ static constexpr TestCase kTests[] = {
     TestCase::From<TestAlarmUnalignedTarget>(),
     TestCase::From<TestRegisterBitmasks>(),
     TestCase::From<TestInterruptMasking>(),
+    TestCase::From<TestAlarmFlagIsSetWhileMasked>(),
+    TestCase::From<TestAlarmFlagIsSetWhileMaskedResetTime>(),
     TestCase::From<TestInterruptAcknowledge>(),
     TestCase::From<TestTimeRegisterReadWrite>(),
     TestCase::From<TestTimeRegisterRollover>(),
