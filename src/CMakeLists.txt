@@ -125,6 +125,8 @@ create_test_xiso(
         test_suite.h
         ptimer_tests/ptimer_test_common.cpp
         ptimer_tests/ptimer_test_common.h
+        ptimer_tests/test_alarm_adjust_preserves_pending_flag.cpp
+        ptimer_tests/test_alarm_adjust_preserves_pending_flag.h
         ptimer_tests/test_alarm_rearm.cpp
         ptimer_tests/test_alarm_rearm.h
         ptimer_tests/test_alarm_rollover_and_periodicity.cpp
