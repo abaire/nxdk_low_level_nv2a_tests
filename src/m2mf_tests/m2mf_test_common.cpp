@@ -49,7 +49,7 @@ void ClearOnScreenLog() { g_on_screen_log.clear(); }
 
 bool M2MFInit() {
   PBKitPlusPlus::Pushbuffer::Initialize();
-  if (gpum_init() < 0) {
+  if (PBKitPlusPlus::NV2AState::InitializeM2M() < 0) {
     LogMsg("  [ERROR] gpum_init failed!\n");
     return false;
   }
