@@ -11,6 +11,7 @@
 #include <algorithm>
 
 #include "pbkit_util.h"
+#include "pushbuffer.h"
 
 extern "C" void (*ptimer_alarm_fired_callback)();
 
@@ -171,6 +172,7 @@ int main() {
     Sleep(2000);
     return 1;
   }
+  PBKitPlusPlus::Pushbuffer::Initialize();
 
   debugPrint("Initializing...");
   pb_show_debug_screen();
@@ -308,9 +310,10 @@ int main() {
     // see the effect on the various clocks.
     // Note that this will trigger an exception on HW
     {
-      auto p = pb_begin();
-      p = pb_push1(p, NV097_WAIT_FOR_IDLE, frame_counter++);
-      pb_end(p);
+      using PBKitPlusPlus::Pushbuffer;
+      Pushbuffer::Begin();
+      Pushbuffer::Push(NV097_WAIT_FOR_IDLE, frame_counter++);
+      Pushbuffer::End();
     }
 #endif
 

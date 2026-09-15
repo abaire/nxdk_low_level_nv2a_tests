@@ -8,6 +8,8 @@
 #include <pbkit/pbkit.h>
 #include <windows.h>
 
+#include "pushbuffer.h"
+
 // mmio blocks
 #define NV2A_MMIO_BASE 0xFD000000
 #define BLOCK_PMC 0x000000
@@ -207,15 +209,16 @@ inline bool SpinUntilEmptyCache1() {
 }
 
 void EmptyCache1() {
-  auto p = pb_begin();
-  p = pb_push1(p, NV097_NO_OPERATION, 1);
-  p = pb_push1(p, NV097_NO_OPERATION, 1);
-  p = pb_push1(p, NV097_NO_OPERATION, 1);
-  p = pb_push1(p, NV097_NO_OPERATION, 1);
-  p = pb_push1(p, NV097_NO_OPERATION, 1);
-  p = pb_push1(p, NV097_NO_OPERATION, 1);
-  p = pb_push1(p, NV097_WAIT_FOR_IDLE, 0);
-  CommitPushbuffer(p);
+  using PBKitPlusPlus::Pushbuffer;
+  Pushbuffer::Begin();
+  Pushbuffer::Push(NV097_NO_OPERATION, 1);
+  Pushbuffer::Push(NV097_NO_OPERATION, 1);
+  Pushbuffer::Push(NV097_NO_OPERATION, 1);
+  Pushbuffer::Push(NV097_NO_OPERATION, 1);
+  Pushbuffer::Push(NV097_NO_OPERATION, 1);
+  Pushbuffer::Push(NV097_NO_OPERATION, 1);
+  Pushbuffer::Push(NV097_WAIT_FOR_IDLE, 0);
+  Pushbuffer::End();
   for (auto i = 0; i < 0x800 && !(ReadDWORD(CACHE1_STATUS) &
                                   NV_PFIFO_CACHE1_STATUS_LOW_MARK_EMPTY);
        ++i) {
@@ -240,11 +243,12 @@ static void TestTinyPushbufferDoesNotAutoKickoff() {
   EmptyCache1();
   PrintCurrentState();
 
-  auto p = pb_begin();
-  p = pb_push1(p, NV097_SET_COLOR_CLEAR_VALUE, 0x7F7F7F7F);
-  p = pb_push1(p, NV097_CLEAR_SURFACE,
-               NV097_CLEAR_SURFACE_COLOR | NV097_CLEAR_SURFACE_STENCIL |
-                   NV097_CLEAR_SURFACE_Z);
+  using PBKitPlusPlus::Pushbuffer;
+  Pushbuffer::Begin();
+  Pushbuffer::Push(NV097_SET_COLOR_CLEAR_VALUE, 0x7F7F7F7F);
+  Pushbuffer::Push(NV097_CLEAR_SURFACE, NV097_CLEAR_SURFACE_COLOR |
+                                            NV097_CLEAR_SURFACE_STENCIL |
+                                            NV097_CLEAR_SURFACE_Z);
 
   DbgPrint(
       "At this point the pushbuffer has been created in system memory but "
@@ -262,7 +266,7 @@ static void TestTinyPushbufferDoesNotAutoKickoff() {
   // This will commit the buffer and cause it to be read.
   // This also enables the CACHE1 to be consumed such that the
   // commands are executed.
-  CommitPushbuffer(p);
+  Pushbuffer::End();
   FillStateBuffer(default_state_buffer);
 
   DbgPrint("DMA/CACHE1 state immediately following the commit:\n");
@@ -270,7 +274,7 @@ static void TestTinyPushbufferDoesNotAutoKickoff() {
 
   DbgPrint("Test completed, sleeping and resetting the pushbuffer pointers\n");
   Sleep(kMillisecondsBetweenTests);
-  pb_reset();
+  Pushbuffer::Flush();
 }
 
 void TestLoopedBatchingWithoutWaitForIdle() {
@@ -383,6 +387,10 @@ void TestLoopedBatchingWithWaitForIdle() {
   pb_reset();
 }
 
+// NOTE: The following flat buffer and timing comparison tests intentionally use
+// raw pb_begin() / pb_end() rather than PBKitPlusPlus::Pushbuffer to evaluate
+// CACHE1 hardware empty/drain latency and unchunked flat buffer processing
+// without Pushbuffer's automatic chunk fragmentation.
 void TestVeryLargeFlatBufferWithNoWait() {
   DbgPrint("== TestVeryLargeFlatBufferWithNoWait ==\n");
   NV2A_PROFILE_DECLARE();
@@ -604,6 +612,7 @@ int main() {
     Sleep(2000);
     return 1;
   }
+  PBKitPlusPlus::Pushbuffer::Initialize();
 
   debugPrint("Initializing...");
   pb_show_debug_screen();

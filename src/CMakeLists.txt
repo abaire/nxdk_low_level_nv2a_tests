@@ -81,6 +81,7 @@ macro(create_test_xiso TARGET_NAME XBE_TITLE)
             NXDK::NXDK
             NXDK::NXDK_CXX
             NXDK::SDL2
+            pbkitplusplus
             PRIVATE
             printf
     )
@@ -188,8 +189,6 @@ create_test_xiso(
         m2mf_tests/m2mf_test_common.h
         m2mf_tests/test_m2mf_linear_copy.cpp
         m2mf_tests/test_m2mf_linear_copy.h
-        m2mf_tests/test_m2mf_linear_copy.cpp
-        m2mf_tests/test_m2mf_linear_copy.h
         m2mf_tests/test_m2mf_min_transfer.cpp
         m2mf_tests/test_m2mf_min_transfer.h
         m2mf_tests/test_m2mf_max_line_count.cpp
@@ -224,10 +223,4 @@ create_test_xiso(
         m2mf_tests/test_m2mf_notifier_record.h
         m2mf_tests/test_m2mf_notifier_switching.cpp
         m2mf_tests/test_m2mf_notifier_switching.h
-)
-
-target_link_libraries(
-        m2mf_test
-        PRIVATE
-        pbkitplusplus
 )
