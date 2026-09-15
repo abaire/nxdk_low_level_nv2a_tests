@@ -2,74 +2,62 @@
 #error Must be built with nxdk
 #endif
 
+#include "xemu_guest_info.h"
+
 #include <SDL.h>
 #include <hal/debug.h>
-#include <hal/fileio.h>
 #include <hal/video.h>
-#include <nxdk/format.h>
-#include <nxdk/mount.h>
 #include <pbkit/pbkit.h>
 #include <windows.h>
 
-#include <cassert>
-#include <cstring>
 #include <string>
-#include <vector>
 
 #include "logger.h"
-#include "m2mf_tests/m2mf_test_common.h"
-#include "m2mf_tests/test_m2mf_alignment_odd_sizes.h"
-#include "m2mf_tests/test_m2mf_alignment_phases.h"
-#include "m2mf_tests/test_m2mf_batching_causal_chain.h"
-#include "m2mf_tests/test_m2mf_batching_independent.h"
-#include "m2mf_tests/test_m2mf_framebuffer.h"
-#include "m2mf_tests/test_m2mf_large_pitch.h"
-#include "m2mf_tests/test_m2mf_linear_copy.h"
-#include "m2mf_tests/test_m2mf_max_line_count.h"
-#include "m2mf_tests/test_m2mf_min_transfer.h"
-#include "m2mf_tests/test_m2mf_notifier_record.h"
-#include "m2mf_tests/test_m2mf_notifier_switching.h"
-#include "m2mf_tests/test_m2mf_pitched_asymmetric.h"
-#include "m2mf_tests/test_m2mf_pitched_packing.h"
-#include "m2mf_tests/test_m2mf_pitched_symmetric.h"
-#include "m2mf_tests/test_m2mf_sysmem_to_vram.h"
-#include "m2mf_tests/test_m2mf_vram_to_sysmem.h"
-#include "m2mf_tests/test_m2mf_vram_to_vram.h"
-#include "m2mf_tests/test_m2mf_zero_size.h"
 #include "nv2astate.h"
-#include "test_suite.h"
+#include "printf/printf.h"
 #include "test_util.h"
 
 static const std::string kLogPath =
-    R"(e:\devkit\nxdk_low_level_nv2a_tests\m2mf_log.txt)";
+    R"(e:\devkit\nxdk_low_level_nv2a_tests\xemu_guest_info_log.txt)";
 
-static constexpr TestCase kTests[] = {
-    TestCase::From<TestM2MFLinearCopy>(),
-    TestCase::From<TestM2MFMinTransfer>(),
-    TestCase::From<TestM2MFMaxLineCount>(),
-    TestCase::From<TestM2MFLargePitch>(),
-    TestCase::From<TestM2MFZeroSize>(),
-    TestCase::From<TestM2MFAlignmentPhases>(),
-    TestCase::From<TestM2MFAlignmentOddSizes>(),
-    TestCase::From<TestM2MFPitchedSymmetric>(),
-    TestCase::From<TestM2MFPitchedAsymmetric>(),
-    TestCase::From<TestM2MFPitchedPacking>(),
-    TestCase::From<TestM2MFSysmemToVram>(),
-    TestCase::From<TestM2MFVramToSysmem>(),
-    TestCase::From<TestM2MFVramToVram>(),
-    TestCase::From<TestM2MFFramebuffer>(),
-    TestCase::From<TestM2MFBatchingIndependent>(),
-    TestCase::From<TestM2MFBatchingCausalChain>(),
-    TestCase::From<TestM2MFNotifierRecord>(),
-    TestCase::From<TestM2MFNotifierSwitching>(),
-};
+static std::deque<std::string> g_on_screen_log;
+static constexpr size_t kMaxOnScreenLogLines = 18;
+
+void LogMsg(const char* fmt, ...) {
+  char buf[512];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf_(buf, sizeof(buf), fmt, args);
+  va_end(args);
+
+  DbgPrint("%s", buf);
+
+  if (Logger::IsInitialized()) {
+    Logger::Log() << buf;
+  }
+
+  std::string s(buf);
+  while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) {
+    s.pop_back();
+  }
+  if (!s.empty()) {
+    g_on_screen_log.push_back(s);
+    if (g_on_screen_log.size() > kMaxOnScreenLogLines) {
+      g_on_screen_log.pop_front();
+    }
+  }
+}
+
+static const std::deque<std::string>& GetOnScreenLog() {
+  return g_on_screen_log;
+}
 
 static void RenderLogScreen() {
   pb_wait_for_vbl();
   pb_reset();
   pb_target_back_buffer();
   ClearScreen(0);
-  pb_print("  NV2A Class 0x39 (M2MF) Hardware Validation Suite\n");
+  pb_print("  xemu Guest Info Tests\n");
   pb_print("============================================================\n\n");
 
   const auto& log = GetOnScreenLog();
@@ -82,24 +70,15 @@ static void RenderLogScreen() {
 }
 
 static void RunAllTests() {
-  std::vector<bool> results;
-  results.reserve(std::size(kTests));
+  auto is_xemu = xemuinfo_host_is_xemu();
+  LogMsg("xemu host check: %s\n", is_xemu ? "TRUE" : "FALSE");
 
-  for (const auto& test : kTests) {
-    bool result = test.test_function();
-    results.push_back(result);
-    RenderLogScreen();
+  XemuVersion ver{0};
+  if (!xemuinfo_get_version(&ver)) {
+    LogMsg("xemu version fetch failed\n");
+  } else {
+    LogMsg("xemu version: %d.%d.%d\n", ver.major, ver.minor, ver.patch);
   }
-
-  pb_erase_text_screen();
-  ClearOnScreenLog();
-
-  LogMsg("Summary:\n");
-  for (size_t i = 0; i < std::size(kTests); ++i) {
-    LogMsg("  %2d %-28s : %s\n", i + 1, kTests[i].name,
-           results[i] ? "PASS" : "FAIL");
-  }
-  LogMsg("\nSee %s\n\n", kLogPath.c_str());
 }
 
 int main() {
@@ -142,14 +121,15 @@ int main() {
   pb_reset();
   pb_target_back_buffer();
   ClearScreen(0);
-  pb_print("  NV2A Class 0x39 (M2MF) Hardware Validation Suite\n");
+  pb_print("  xemu Guest Info Tests\n");
   pb_print("============================================================\n\n");
-  pb_print("Testing (this may take some time)...\n");
   pb_draw_text_screen();
   PBKitPlusPlus::NV2AState::FinishDraw();
 
-  LogMsg("Running test suite...\n");
   RunAllTests();
+
+  LogMsg("Log file: %s\n\n", kLogPath.c_str());
+  LogMsg("\n[Start / B / RShoulder] Exit\n");
 
   bool running = true;
   while (running) {
@@ -184,22 +164,11 @@ int main() {
     pb_reset();
     pb_target_back_buffer();
     ClearScreen(0);
+    RenderLogScreen();
 
-    pb_print("  NV2A Class 0x39 (M2MF) Hardware Validation Suite\n");
-    pb_print("Log file: %s\n\n", kLogPath.c_str());
-
-    const auto& log = GetOnScreenLog();
-    for (const auto& line : log) {
-      pb_print("%s\n", line.c_str());
-    }
-
-    pb_print("\n[Start / B / RShoulder] Exit\n");
-
-    pb_draw_text_screen();
     PBKitPlusPlus::NV2AState::FinishDraw();
   }
 
-  M2MFTeardown();
   pb_kill();
   return 0;
 }

@@ -78,6 +78,7 @@ macro(create_test_xiso TARGET_NAME XBE_TITLE)
     target_link_libraries(
             ${TARGET_NAME}
             PRIVATE
+            test_util
             NXDK::NXDK
             NXDK::NXDK_CXX
             NXDK::SDL2
@@ -110,6 +111,33 @@ endmacro()
 
 
 # ---------------------------------------------------------------------------
+# Test Support Library
+# ---------------------------------------------------------------------------
+
+add_library(
+        test_util
+        STATIC
+        test_util.cpp
+        test_util.h
+)
+set_compile_and_link_options(test_util)
+target_include_directories(
+        test_util
+        PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_SOURCE_DIR}/third_party"
+)
+target_link_libraries(
+        test_util
+        PUBLIC
+        NXDK::NXDK
+        NXDK::NXDK_CXX
+        pbkitplusplus
+        printf
+)
+
+
+# ---------------------------------------------------------------------------
 # Target Definitions
 # ---------------------------------------------------------------------------
 
@@ -118,8 +146,6 @@ create_test_xiso(
         ptimer_alarm_test
         "PTIMER alarm test"
         ptimer_alarm_main.cpp
-        pbkit_util.cpp
-        pbkit_util.h
         logger.cpp
         logger.h
         test_suite.h
@@ -164,8 +190,6 @@ create_test_xiso(
         pfifo_cache1_test
         "PFIFO CACHE1 test"
         pfifo_cache1_main.cpp
-        pbkit_util.cpp
-        pbkit_util.h
 )
 
 # clock_test
@@ -173,8 +197,6 @@ create_test_xiso(
         clock_test
         "Clock test"
         clock_main.cpp
-        pbkit_util.cpp
-        pbkit_util.h
 )
 
 # m2mf_test
@@ -182,8 +204,6 @@ create_test_xiso(
         m2mf_test
         "NV2A Class 0x39 M2MF test"
         m2mf_main.cpp
-        pbkit_util.cpp
-        pbkit_util.h
         logger.cpp
         logger.h
         test_suite.h
@@ -225,4 +245,14 @@ create_test_xiso(
         m2mf_tests/test_m2mf_notifier_record.h
         m2mf_tests/test_m2mf_notifier_switching.cpp
         m2mf_tests/test_m2mf_notifier_switching.h
+)
+
+# xemu_guest_info
+create_test_xiso(
+        xemu_guest_info_test
+        "xemu guest info test"
+        xemu_guest_info_test.cpp
+        xemu_guest_info.h
+        logger.cpp
+        logger.h
 )

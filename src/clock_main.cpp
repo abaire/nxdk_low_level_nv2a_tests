@@ -10,8 +10,9 @@
 
 #include <algorithm>
 
-#include "pbkit_util.h"
+#include "nv2astate.h"
 #include "pushbuffer.h"
+#include "test_util.h"
 
 extern "C" void (*ptimer_alarm_fired_callback)();
 
@@ -303,7 +304,7 @@ int main() {
     pb_reset();
     pb_target_back_buffer();
 
-    PBKitClearScreen(0);
+    ClearScreen(0);
 
 #if 0
     // Push a specific command sequence that xemu can use to delay in order to
@@ -317,7 +318,7 @@ int main() {
     }
 #endif
 
-    PBKitBusyWait();
+    PBKitPlusPlus::NV2AState::PBKitBusyWait();
 
     clock_state.Update(!freeze_tick_display);
 
@@ -370,8 +371,7 @@ int main() {
 
     pb_draw_text_screen();
 
-    PBKitBusyWait();
-    PBKitFlip();
+    PBKitPlusPlus::NV2AState::FinishDraw();
   }
 
   pb_kill();

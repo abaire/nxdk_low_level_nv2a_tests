@@ -8,7 +8,6 @@
 
 #include "logger.h"
 #include "nv2astate.h"
-#include "pbkit_util.h"
 #include "pushbuffer.h"
 #include "third_party/gpu_m2m.h"
 
@@ -28,6 +27,10 @@ using PBKitPlusPlus::kM2MDmaNotifyChannel;
 using PBKitPlusPlus::kM2MDmaNotifyScratchChannel;
 using PBKitPlusPlus::kM2MDmaOutChannel;
 using PBKitPlusPlus::kM2MSubchannel;
+
+static inline void PBKitBusyWait() {
+  PBKitPlusPlus::NV2AState::PBKitBusyWait();
+}
 
 //! NV_MEMORY_TO_MEMORY_FORMAT_FORMAT configuration:
 //! Bits [7:0]   INPUT_INC  = 1 byte

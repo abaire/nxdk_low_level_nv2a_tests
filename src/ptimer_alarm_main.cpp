@@ -4,20 +4,16 @@
 
 #include <SDL.h>
 #include <hal/debug.h>
-#include <hal/fileio.h>
 #include <hal/video.h>
-#include <nxdk/format.h>
-#include <nxdk/mount.h>
 #include <pbkit/pbkit.h>
 #include <windows.h>
 
 #include <cassert>
-#include <cstring>
 #include <string>
 #include <vector>
 
 #include "logger.h"
-#include "pbkit_util.h"
+#include "nv2astate.h"
 #include "ptimer_tests/ptimer_test_common.h"
 #include "ptimer_tests/test_alarm_adjust_preserves_pending_flag.h"
 #include "ptimer_tests/test_alarm_flag_is_set_while_masked.h"
@@ -36,8 +32,7 @@
 #include "ptimer_tests/test_time_register_rollover.h"
 #include "ptimer_tests/test_zero_divisor_clock.h"
 #include "test_suite.h"
-
-#define MAX_FILE_PATH_SIZE 248
+#include "test_util.h"
 
 static const std::string kLogPath =
     R"(e:\devkit\nxdk_low_level_nv2a_tests\log.txt)";
@@ -61,71 +56,11 @@ static constexpr TestCase kTests[] = {
     TestCase::From<TestZeroDivisorClock>(),
 };
 
-static void EnsureFolderExists(const std::string& folder_path) {
-  if (folder_path.length() > MAX_FILE_PATH_SIZE) {
-    assert(!"Folder Path is too long.");
-  }
-
-  char buffer[MAX_FILE_PATH_SIZE + 1] = {0};
-  const char* path_start = folder_path.c_str();
-  const char* slash = strchr(path_start, '\\');
-  if (slash) {
-    slash = strchr(slash + 1, '\\');
-  }
-
-  while (slash) {
-    strncpy(buffer, path_start, slash - path_start);
-    buffer[slash - path_start] = 0;
-    if (!CreateDirectory(buffer, nullptr) &&
-        GetLastError() != ERROR_ALREADY_EXISTS) {
-      assert(!"Failed to create output directory.");
-    }
-
-    slash = strchr(slash + 1, '\\');
-  }
-
-  // Handle case where there was no trailing slash.
-  if (!CreateDirectory(path_start, nullptr) &&
-      GetLastError() != ERROR_ALREADY_EXISTS) {
-    assert(!"Failed to create output directory.");
-  }
-}
-
-static bool EnsureDriveMounted(char drive_letter, bool format = false) {
-  if (nxIsDriveMounted(drive_letter)) {
-    return true;
-  }
-
-  char dos_path[4] = "x:\\";
-  dos_path[0] = drive_letter;
-  char device_path[256] = {0};
-  if (XConvertDOSFilenameToXBOX(dos_path, device_path) != STATUS_SUCCESS) {
-    return false;
-  }
-
-  if (!strstr(device_path, R"(\Device\Harddisk0\Partition)")) {
-    return false;
-  }
-  device_path[28] = 0;
-
-  if (format) {
-    char last_char = device_path[27];
-    if (last_char != '3' && last_char != '4' && last_char != '5') {
-      return false;
-    }
-    if (!nxFormatVolume(device_path, 0)) {
-      return false;
-    }
-  }
-
-  return nxMountDrive(drive_letter, device_path);
-}
-
 static void RenderLogScreen() {
   pb_wait_for_vbl();
   pb_reset();
   pb_target_back_buffer();
-  PBKitClearScreen(0);
+  ClearScreen(0);
   pb_print("  NV2A PTIMER Hardware Validation Suite\n");
   pb_print("============================================================\n\n");
 
@@ -135,8 +70,7 @@ static void RenderLogScreen() {
   }
 
   pb_draw_text_screen();
-  PBKitBusyWait();
-  PBKitFlip();
+  PBKitPlusPlus::NV2AState::FinishDraw();
 }
 
 static void RunAllTests() {
@@ -213,13 +147,12 @@ int main() {
   pb_wait_for_vbl();
   pb_reset();
   pb_target_back_buffer();
-  PBKitClearScreen(0);
+  ClearScreen(0);
   pb_print("  NV2A PTIMER Hardware Validation Suite\n");
   pb_print("============================================================\n\n");
   pb_print("Testing (this may take some time)...\n");
   pb_draw_text_screen();
-  PBKitBusyWait();
-  PBKitFlip();
+  PBKitPlusPlus::NV2AState::FinishDraw();
 
   LogMsg("Running test suite...\n");
   RunAllTests();
@@ -266,7 +199,7 @@ int main() {
     pb_wait_for_vbl();
     pb_reset();
     pb_target_back_buffer();
-    PBKitClearScreen(0);
+    ClearScreen(0);
 
     g_clock_state.Update();
 
@@ -310,8 +243,7 @@ int main() {
     }
 
     pb_draw_text_screen();
-    PBKitBusyWait();
-    PBKitFlip();
+    PBKitPlusPlus::NV2AState::FinishDraw();
   }
 
   pb_kill();

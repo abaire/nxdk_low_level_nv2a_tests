@@ -12,7 +12,6 @@
 #include <string>
 
 #include "logger.h"
-#include "pbkit_util.h"
 #include "printf/printf.h"
 
 static std::deque<std::string> g_on_screen_log;
@@ -56,7 +55,7 @@ bool M2MFInit() {
   return true;
 }
 
-void M2MFTeardown() { PBKitBusyWait(); }
+void M2MFTeardown() { PBKitPlusPlus::NV2AState::PBKitBusyWait(); }
 
 uint32_t M2MFGetPhysicalAddress(const void* p) {
   uintptr_t va = reinterpret_cast<uintptr_t>(p);
