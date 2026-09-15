@@ -173,3 +173,61 @@ create_test_xiso(
         pbkit_util.cpp
         pbkit_util.h
 )
+
+# m2mf_test
+create_test_xiso(
+        m2mf_test
+        "NV2A Class 0x39 M2MF test"
+        m2mf_main.cpp
+        pbkit_util.cpp
+        pbkit_util.h
+        logger.cpp
+        logger.h
+        test_suite.h
+        m2mf_tests/m2mf_test_common.cpp
+        m2mf_tests/m2mf_test_common.h
+        m2mf_tests/test_m2mf_linear_copy.cpp
+        m2mf_tests/test_m2mf_linear_copy.h
+        m2mf_tests/test_m2mf_linear_copy.cpp
+        m2mf_tests/test_m2mf_linear_copy.h
+        m2mf_tests/test_m2mf_min_transfer.cpp
+        m2mf_tests/test_m2mf_min_transfer.h
+        m2mf_tests/test_m2mf_max_line_count.cpp
+        m2mf_tests/test_m2mf_max_line_count.h
+        m2mf_tests/test_m2mf_large_pitch.cpp
+        m2mf_tests/test_m2mf_large_pitch.h
+        m2mf_tests/test_m2mf_zero_size.cpp
+        m2mf_tests/test_m2mf_zero_size.h
+        m2mf_tests/test_m2mf_alignment_phases.cpp
+        m2mf_tests/test_m2mf_alignment_phases.h
+        m2mf_tests/test_m2mf_alignment_odd_sizes.cpp
+        m2mf_tests/test_m2mf_alignment_odd_sizes.h
+        m2mf_tests/test_m2mf_pitched_symmetric.cpp
+        m2mf_tests/test_m2mf_pitched_symmetric.h
+        m2mf_tests/test_m2mf_pitched_asymmetric.cpp
+        m2mf_tests/test_m2mf_pitched_asymmetric.h
+        m2mf_tests/test_m2mf_pitched_packing.cpp
+        m2mf_tests/test_m2mf_pitched_packing.h
+        m2mf_tests/test_m2mf_sysmem_to_vram.cpp
+        m2mf_tests/test_m2mf_sysmem_to_vram.h
+        m2mf_tests/test_m2mf_vram_to_sysmem.cpp
+        m2mf_tests/test_m2mf_vram_to_sysmem.h
+        m2mf_tests/test_m2mf_vram_to_vram.cpp
+        m2mf_tests/test_m2mf_vram_to_vram.h
+        m2mf_tests/test_m2mf_framebuffer.cpp
+        m2mf_tests/test_m2mf_framebuffer.h
+        m2mf_tests/test_m2mf_batching_independent.cpp
+        m2mf_tests/test_m2mf_batching_independent.h
+        m2mf_tests/test_m2mf_batching_causal_chain.cpp
+        m2mf_tests/test_m2mf_batching_causal_chain.h
+        m2mf_tests/test_m2mf_notifier_record.cpp
+        m2mf_tests/test_m2mf_notifier_record.h
+        m2mf_tests/test_m2mf_notifier_switching.cpp
+        m2mf_tests/test_m2mf_notifier_switching.h
+)
+
+target_link_libraries(
+        m2mf_test
+        PRIVATE
+        pbkitplusplus
+)
