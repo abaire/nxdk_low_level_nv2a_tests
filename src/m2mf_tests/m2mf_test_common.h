@@ -58,4 +58,7 @@ bool M2MFVerifyPattern(const void* buf, size_t size, uint8_t seed = 0xA5);
 //! Verifies all bytes in a buffer equal the specified canary value.
 bool M2MFVerifyCanaries(const void* buf, size_t size, uint8_t canary = 0x55);
 
+//! Formats and logs a hex dump of a memory buffer.
+void LogHexDump(const char* label, const void* data, size_t len);
+
 #endif  // NXDK_LOW_LEVEL_NV2A_TESTS_M2MF_TEST_COMMON_H

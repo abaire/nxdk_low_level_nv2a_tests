@@ -96,3 +96,27 @@ bool M2MFVerifyCanaries(const void* buf, size_t size, uint8_t canary) {
   }
   return true;
 }
+
+void LogHexDump(const char* label, const void* data, size_t len) {
+  const auto* p = static_cast<const uint8_t*>(data);
+  LogMsg("  %s (%u bytes):\n", label, static_cast<uint32_t>(len));
+  for (size_t i = 0; i < len; i += 16) {
+    char hex[50] = {0};
+    char ascii[17] = {0};
+    size_t chunk = (len - i < 16) ? (len - i) : 16;
+    size_t hex_pos = 0;
+    for (size_t j = 0; j < 16; ++j) {
+      if (j < chunk) {
+        uint8_t byte = p[i + j];
+        hex_pos +=
+            snprintf_(hex + hex_pos, sizeof(hex) - hex_pos, "%02X ", byte);
+        ascii[j] = (byte >= 32 && byte <= 126) ? static_cast<char>(byte) : '.';
+      } else {
+        hex_pos += snprintf_(hex + hex_pos, sizeof(hex) - hex_pos, "   ");
+        ascii[j] = ' ';
+      }
+    }
+    ascii[chunk] = '\0';
+    LogMsg("    %04X:  %s |%s|\n", static_cast<uint32_t>(i), hex, ascii);
+  }
+}
