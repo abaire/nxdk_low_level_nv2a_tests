@@ -1,6 +1,7 @@
 [submodule "third_party/nxdk"]
 	path = third_party/nxdk
 	url = https://github.com/abaire/nxdk.git
+	branch = nxdk_low_level_nv2a_tests
 [submodule "third_party/printf"]
 	path = third_party/printf
 	url = https://github.com/mpaland/printf.git

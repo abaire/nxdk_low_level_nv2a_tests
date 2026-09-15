@@ -126,6 +126,7 @@ function(add_xbe)
             "-OUT:${XBE_OUTPUT_PATH}"
             "${exe_file}"
             DEPENDS "${exe_file}"
+            VERBATIM
     )
 
     # Copy resources to the staging directory.

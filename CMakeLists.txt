@@ -24,6 +24,13 @@ if (CMAKE_TOOLCHAIN_FILE MATCHES "toolchain-nxdk.cmake")
 else ()
     message (FATAL_ERROR "This project must be built with the nxdk toolchain (`-DCMAKE_TOOLCHAIN_FILE=<YOUR_NXDK_DIR>/share/toolchain-nxdk.cmake`)")
 endif ()
+include(FetchContent)
+FetchContent_Declare(
+        pbkitplusplus
+        GIT_REPOSITORY https://github.com/abaire/pbkitplusplus.git
+        GIT_TAG main
+)
+FetchContent_MakeAvailable(pbkitplusplus)
 
-add_subdirectory(src)
 add_subdirectory(third_party)
+add_subdirectory(src)
