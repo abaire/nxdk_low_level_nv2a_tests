@@ -39,6 +39,59 @@ jobs:
               -DCMAKE_TOOLCHAIN_FILE="${NXDK_DIR}/share/toolchain-nxdk.cmake"
         cmake --build build -- -j$(grep -c processor /proc/cpuinfo)
 
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: isos
+        path: |
+          build/src/xiso/ptimer_alarm_test_xiso/ptimer_alarm_test_xiso.iso
+          build/src/xiso/pfifo_cache1_test_xiso/pfifo_cache1_test_xiso.iso
+          build/src/xiso/clock_test_xiso/clock_test_xiso.iso
+          build/src/xiso/m2mf_test_xiso/m2mf_test_xiso.iso
+          build/src/xiso/xemu_guest_info_test_xiso/xemu_guest_info_test_xiso.iso
+
+  CreateRelease:
+    needs: [ BuildISO ]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone tree
+        uses: actions/checkout@v7
+        with:
+          path: nxdk_low_level_nv2a_tests
+
+      - name: Calculate version
+        id: calculate-version
+        run: |
+          echo "version=$(date +'%Y-%m-%d_%H-%M-%S-%N')" >> $GITHUB_OUTPUT
+
+      - name: Create tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v7
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          custom_tag: ${{ steps.calculate-version.outputs.version }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: isos
+          path: .
+
+      - name: Create release
+        uses: softprops/action-gh-release@v3.0.3
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          name: "Low level NV2A tests ${{ steps.tag_version.outputs.new_version }}"
+          prerelease: false
+          draft: false
+          files: |
+            ptimer_alarm_test_xiso.iso
+            pfifo_cache1_test_xiso.iso
+            clock_test_xiso.iso
+            m2mf_test_xiso.iso
+            xemu_guest_info_test_xiso.iso
+
+
   BuildMacOS:
     name: Build macOS
     runs-on: macOS-latest
