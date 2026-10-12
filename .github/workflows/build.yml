@@ -39,16 +39,22 @@ jobs:
               -DCMAKE_TOOLCHAIN_FILE="${NXDK_DIR}/share/toolchain-nxdk.cmake"
         cmake --build build -- -j$(grep -c processor /proc/cpuinfo)
 
+    - name: Stage ISOs
+      run: |
+        mkdir -p dist
+        for iso in \
+          m2mf_test_xiso/m2mf_test_xiso.iso \
+          ptimer_alarm_test_xiso/ptimer_alarm_test_xiso.iso
+        do
+          mkdir -p "dist/$(dirname "$iso")"
+          cp "build/src/xiso/$iso" "dist/$iso"
+        done
+
     - name: Upload artifacts
       uses: actions/upload-artifact@v7
       with:
         name: isos
-        path: |
-          build/src/xiso/ptimer_alarm_test_xiso/ptimer_alarm_test_xiso.iso
-          build/src/xiso/pfifo_cache1_test_xiso/pfifo_cache1_test_xiso.iso
-          build/src/xiso/clock_test_xiso/clock_test_xiso.iso
-          build/src/xiso/m2mf_test_xiso/m2mf_test_xiso.iso
-          build/src/xiso/xemu_guest_info_test_xiso/xemu_guest_info_test_xiso.iso
+        path: dist/
 
   CreateRelease:
     needs: [ BuildISO ]
@@ -75,7 +81,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: isos
-          path: .
+          path: dist
 
       - name: Create release
         uses: softprops/action-gh-release@v3.0.3
@@ -84,12 +90,7 @@ jobs:
           name: "Low level NV2A tests ${{ steps.tag_version.outputs.new_version }}"
           prerelease: false
           draft: false
-          files: |
-            ptimer_alarm_test_xiso/ptimer_alarm_test_xiso.iso
-            pfifo_cache1_test_xiso/pfifo_cache1_test_xiso.iso
-            clock_test_xiso/clock_test_xiso.iso
-            m2mf_test_xiso/m2mf_test_xiso.iso
-            xemu_guest_info_test_xiso/xemu_guest_info_test_xiso.iso
+          files: dist/**/*.iso
 
 
   BuildMacOS:

@@ -12,10 +12,10 @@
 
 #include <string>
 
-#include "logger.h"
+#include "../logger.h"
+#include "../test_util.h"
 #include "nv2astate.h"
 #include "printf/printf.h"
-#include "test_util.h"
 
 static const std::string kLogPath =
     R"(e:\devkit\nxdk_low_level_nv2a_tests\xemu_guest_info_log.txt)";

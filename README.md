@@ -6,6 +6,19 @@ Various tests for very low level operation of the nv2a GPU.
 * ptimer_alarm_test - tests the operation of NV_PTIMER_ALARM_0 and the associated interrupt.
 * pfifo_cache1_test - tests submission and execution of pushbuffer commands via DMA and the CACHE1 registers.
 
+
+## Headless Execution & Automated Testing
+
+To facilitate automated test runs in tools like `xemu-test`, each test suite checks for an optional configuration file at `c:\test_suite_config.ini` upon startup.
+
+The configuration file supports flat `KEY=VALUE` pairs (lines starting with `#` or `;` are ignored):
+
+* `log_path`: Overrides the exact output path of the log file (e.g., `log_path = c:\test_output.txt` or `log_path = e:\custom_dir\log.txt`). The target drive partition is mounted automatically based on the drive letter.
+* `shutdown`: Enables headless termination (`shutdown = true` or `1`/`yes`/`on`). When set, the system will flush test logs and immediately power down.
+
+If no configuration file is present or keys are omitted, suites write to their default log paths and wait for controller input (`Black` button / Right Shoulder / Start) to exit.
+
+
 ## CLion
 
 ### Building
