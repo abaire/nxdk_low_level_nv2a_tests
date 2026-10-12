@@ -117,6 +117,8 @@ endmacro()
 add_library(
         test_util
         STATIC
+        test_runner.cpp
+        test_runner.h
         test_util.cpp
         test_util.h
 )
@@ -132,6 +134,7 @@ target_link_libraries(
         PUBLIC
         NXDK::NXDK
         NXDK::NXDK_CXX
+        NXDK::SDL2
         pbkitplusplus
         printf
 )
@@ -189,14 +192,14 @@ create_test_xiso(
 create_test_xiso(
         pfifo_cache1_test
         "PFIFO CACHE1 test"
-        pfifo_cache1_main.cpp
+        investigatory_tests/pfifo_cache1_main.cpp
 )
 
 # clock_test
 create_test_xiso(
         clock_test
         "Clock test"
-        clock_main.cpp
+        investigatory_tests/clock_main.cpp
 )
 
 # m2mf_test
@@ -253,8 +256,8 @@ create_test_xiso(
 create_test_xiso(
         xemu_guest_info_test
         "xemu guest info test"
-        xemu_guest_info_test.cpp
-        xemu_guest_info.h
+        investigatory_tests/xemu_guest_info_test.cpp
+        investigatory_tests/xemu_guest_info.h
         logger.cpp
         logger.h
 )

@@ -10,9 +10,9 @@
 
 #include <algorithm>
 
+#include "../test_util.h"
 #include "nv2astate.h"
 #include "pushbuffer.h"
-#include "test_util.h"
 
 extern "C" void (*ptimer_alarm_fired_callback)();
 

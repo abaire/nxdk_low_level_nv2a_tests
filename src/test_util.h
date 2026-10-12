@@ -36,6 +36,14 @@ void pb_print_with_floats(const char* format, ...);
 }  // extern "C"
 #endif
 
+#if defined(__cplusplus)
+#include <deque>
+
+void LogMsg(const char* fmt, ...);
+const std::deque<std::string>& GetOnScreenLog();
+void ClearOnScreenLog();
+#endif
+
 static void EnsureFolderExists(const std::string& folder_path) {
   if (folder_path.length() > MAX_FILE_PATH_SIZE) {
     assert(!"Folder Path is too long.");
