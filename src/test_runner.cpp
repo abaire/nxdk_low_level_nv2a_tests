@@ -157,6 +157,7 @@ void TestRunner::ShutdownSystem() {
   const UCHAR kSMCSlaveAddress = 0x20;
   const UCHAR kSMCRegisterPower = 0x02;
   const UCHAR kSMCPowerShutdown = 0x80;
+  Sleep(100);
   HalWriteSMBusValue(kSMCSlaveAddress, kSMCRegisterPower, FALSE,
                      kSMCPowerShutdown);
   for (;;) {
