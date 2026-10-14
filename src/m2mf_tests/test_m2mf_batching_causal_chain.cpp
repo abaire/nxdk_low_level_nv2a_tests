@@ -8,11 +8,8 @@
 #include "m2mf_test_common.h"
 
 bool TestM2MFBatchingCausalChain::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Causal Chained Transfers\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -25,7 +22,7 @@ bool TestM2MFBatchingCausalChain::Test() {
       MmAllocateContiguousMemoryEx(kChainSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!buf_a || !buf_b || !buf_c) {
-    LogMsg("  [FAIL] Memory allocation failed for chained transfer test.\n");
+    TEST_FAIL("Memory allocation failed for chained transfer test.");
     if (buf_a) MmFreeContiguousMemory(buf_a);
     if (buf_b) MmFreeContiguousMemory(buf_b);
     if (buf_c) MmFreeContiguousMemory(buf_c);
@@ -74,19 +71,14 @@ bool TestM2MFBatchingCausalChain::Test() {
 
   bool pass = true;
   if (!b_ok) {
-    LogMsg(
-        "  [FAIL] Intermediate Buffer B did not receive expected data from "
-        "A.\n");
+    TEST_FAIL("Intermediate Buffer B did not receive expected data from A.");
     pass = false;
   } else if (!c_ok) {
-    LogMsg(
-        "  [FAIL] Final Buffer C did not receive chained data from B "
-        "(hazard).\n");
+    TEST_FAIL("Final Buffer C did not receive chained data from B (hazard).");
     pass = false;
   } else {
-    LogMsg(
-        "  [PASS] Chained transfer (A -> B -> C, %u B) executed hazard-free.\n",
-        kChainSize);
+    TEST_PASS("Chained transfer (A -> B -> C, %u B) executed hazard-free.",
+              kChainSize);
   }
 
   MmFreeContiguousMemory(buf_a);

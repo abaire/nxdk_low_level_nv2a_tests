@@ -3,9 +3,6 @@
 #include "ptimer_test_common.h"
 
 bool TestAlarmTargetZero::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: Alarm Target Zero\n");
-
   bool pass = true;
 
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
@@ -48,22 +45,20 @@ bool TestAlarmTargetZero::Test() {
   uint32_t intr_final = VIDEOREG(NV_PTIMER_INTR_0);
   uint32_t t_final = VIDEOREG(NV_PTIMER_TIME_0);
 
-  LogMsg("  Final state: TIME_0=0x%08X, INTR_0=0x%08X, alarm firings=%u\n",
-         t_final, intr_final, g_alarm_capture_count);
+  TEST_INFO("Final state: TIME_0=0x%08X, INTR_0=0x%08X, alarm firings=%u",
+            t_final, intr_final, g_alarm_capture_count);
 
   if (g_alarm_capture_count > 0) {
     const auto& cap = g_alarm_captures[0];
     int32_t jitter = static_cast<int32_t>(cap.time_0);
-    LogMsg(
-        "  [PASS] Alarm fired for ALARM_0 = 0 at TIME_0=0x%08X (jitter: %+d "
-        "ticks)\n",
+    TEST_PASS(
+        "Alarm fired for ALARM_0 = 0 at TIME_0=0x%08X (jitter: %+d ticks)",
         cap.time_0, jitter);
   } else {
-    LogMsg(
-        "  [FAIL] Alarm did not fire when TIME_0 wrapped past ALARM_0 = 0!\n");
+    TEST_FAIL("Alarm did not fire when TIME_0 wrapped past ALARM_0 = 0!");
     if ((intr_final & 1) != 0) {
-      LogMsg(
-          "         (INTR_0 bit 0 was set, but CPU interrupt did not fire)\n");
+      TEST_INFO(
+          "       (INTR_0 bit 0 was set, but CPU interrupt did not fire)");
     }
     pass = false;
   }

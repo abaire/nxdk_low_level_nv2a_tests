@@ -8,6 +8,7 @@
 //! correctly triggers an interrupt when TIME_0 reaches the target.
 struct TestAlarmRearm {
   static constexpr const char* Name() { return "Alarm Explicit Re-arm"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

@@ -16,6 +16,7 @@ struct TestM2MFBatchingCausalChain {
   static constexpr const char* Name() {
     return "M2MF Causal Chained Transfers";
   }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

@@ -12,6 +12,7 @@
 //! configurations.
 struct TestM2MFPitchedAsymmetric {
   static constexpr const char* Name() { return "M2MF Pitched 2D Asymmetric"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

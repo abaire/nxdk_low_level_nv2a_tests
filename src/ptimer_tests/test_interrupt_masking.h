@@ -10,6 +10,7 @@
 //!    the CPU interrupt.
 struct TestInterruptMasking {
   static constexpr const char* Name() { return "Interrupt Masking & Pending"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

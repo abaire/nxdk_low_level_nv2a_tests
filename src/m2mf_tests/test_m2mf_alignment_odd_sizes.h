@@ -15,6 +15,7 @@ struct TestM2MFAlignmentOddSizes {
   static constexpr const char* Name() {
     return "M2MF Alignment Odd & Prime Sizes";
   }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

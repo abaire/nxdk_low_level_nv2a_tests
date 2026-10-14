@@ -13,6 +13,7 @@ struct TestM2MFPitchedPacking {
   static constexpr const char* Name() {
     return "M2MF Pitched Row Packing/Unpacking";
   }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

@@ -17,6 +17,7 @@
 //!    CPU interrupts when NV_PTIMER_ALARM_0 is restored to the boot value.
 struct TestAlarmUnprogrammed {
   static constexpr const char* Name() { return "Alarm Unprogrammed at Boot"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

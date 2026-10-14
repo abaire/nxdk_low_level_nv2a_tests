@@ -9,11 +9,8 @@
 #include "m2mf_test_common.h"
 
 bool TestM2MFNotifierSwitching::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Notifier Context Switching\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -24,7 +21,7 @@ bool TestM2MFNotifierSwitching::Test() {
       MmAllocateContiguousMemoryEx(kBufSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_buf || !dst_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (src_buf) MmFreeContiguousMemory(src_buf);
     if (dst_buf) MmFreeContiguousMemory(dst_buf);
     return false;
@@ -38,7 +35,7 @@ bool TestM2MFNotifierSwitching::Test() {
 
   // Arm initial live notifier state with a dummy copy
   if (gpum_copy(dst_buf, src_buf, 256) == nullptr) {
-    LogMsg("  [FAIL] Initial gpum_copy failed.\n");
+    TEST_FAIL("Initial gpum_copy failed.");
     MmFreeContiguousMemory(src_buf);
     MmFreeContiguousMemory(dst_buf);
     return false;
@@ -73,12 +70,10 @@ bool TestM2MFNotifierSwitching::Test() {
   if (scratch_rec.ptimer_low != prev_rec.ptimer_low ||
       scratch_rec.ptimer_high != prev_rec.ptimer_high ||
       scratch_rec.status != prev_rec.status) {
-    LogMsg("  [FAIL] Live notifier was modified during scratch transfer.\n");
+    TEST_FAIL("Live notifier was modified during scratch transfer.");
     pass = false;
   } else {
-    LogMsg(
-        "  [PASS] Method 0x180 directed completion exclusively to "
-        "scratch.\n");
+    TEST_PASS("Method 0x180 directed completion exclusively to scratch.");
   }
 
   // Now switch back to live notifier and verify it updates
@@ -100,15 +95,16 @@ bool TestM2MFNotifierSwitching::Test() {
   gpum_notifier_dump(&live_rec);
 
   if (live_rec.status != 0) {
-    LogMsg("  [FAIL] Live notifier status is not 0 (0x%08X).\n",
-           live_rec.status);
+    TEST_FAIL_EX(
+        TestFields("expected", Hex32(0), "actual", Hex32(live_rec.status)),
+        "Live notifier status is not 0 (0x%08X).", live_rec.status);
     pass = false;
   } else if (live_rec.ptimer_low == prev_rec.ptimer_low &&
              live_rec.ptimer_high == prev_rec.ptimer_high) {
-    LogMsg("  [FAIL] Live notifier timestamp did not advance.\n");
+    TEST_FAIL("Live notifier timestamp did not advance.");
     pass = false;
   } else {
-    LogMsg("  [PASS] Method 0x180 switched back cleanly to live notifier.\n");
+    TEST_PASS("Method 0x180 switched back cleanly to live notifier.");
   }
 
   MmFreeContiguousMemory(src_buf);

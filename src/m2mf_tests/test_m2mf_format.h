@@ -20,6 +20,7 @@
 //! destination buffer.
 struct TestM2MFFormat {
   static constexpr const char* Name() { return "M2MF Format Variations"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

@@ -8,11 +8,8 @@
 #include "m2mf_test_common.h"
 
 bool TestM2MFVramToSysmem::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF VRAM (WC) to Sysmem (WB)\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -26,7 +23,7 @@ bool TestM2MFVramToSysmem::Test() {
       kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE | PAGE_WRITECOMBINE));
 
   if (!sysmem_buf || !vram_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (sysmem_buf) MmFreeContiguousMemory(sysmem_buf);
     if (vram_buf) MmFreeContiguousMemory(vram_buf);
     return false;
@@ -44,17 +41,17 @@ bool TestM2MFVramToSysmem::Test() {
 
   bool pass = true;
   if (!gpum_copy(dst, src, kDataSize)) {
-    LogMsg("  [FAIL] VRAM -> Sysmem download timed out or failed.\n");
+    TEST_FAIL("VRAM -> Sysmem download timed out or failed.");
     pass = false;
   } else if (!M2MFVerifyPattern(dst, kDataSize, kSeed)) {
-    LogMsg("  [FAIL] VRAM -> Sysmem download data mismatch.\n");
+    TEST_FAIL("VRAM -> Sysmem download data mismatch.");
     pass = false;
   } else if (!M2MFVerifyCanaries(sysmem_buf, kCanarySize, 0x55) ||
              !M2MFVerifyCanaries(dst + kDataSize, kCanarySize, 0xAA)) {
-    LogMsg("  [FAIL] VRAM -> Sysmem download corrupted canaries.\n");
+    TEST_FAIL("VRAM -> Sysmem download corrupted canaries.");
     pass = false;
   } else {
-    LogMsg("  [PASS] VRAM (WC) -> Sysmem (WB) download (16 KB) verified.\n");
+    TEST_PASS("VRAM (WC) -> Sysmem (WB) download (16 KB) verified.");
   }
 
   MmFreeContiguousMemory(sysmem_buf);

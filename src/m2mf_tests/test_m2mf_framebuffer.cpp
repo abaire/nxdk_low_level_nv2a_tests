@@ -14,16 +14,13 @@ extern int pb_back_index;
 }
 
 bool TestM2MFFramebuffer::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Framebuffer Aperture Write\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
   if (pb_FBAddr[pb_back_index] == 0) {
-    LogMsg("  [SKIP] Framebuffer backbuffer address is not available.\n");
+    TEST_INFO("[SKIP] Framebuffer backbuffer address is not available.");
     return true;
   }
 
@@ -35,7 +32,7 @@ bool TestM2MFFramebuffer::Test() {
       MmAllocateContiguousMemoryEx(kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!sysmem_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffer.\n");
+    TEST_FAIL("Failed to allocate test memory buffer.");
     return false;
   }
 
@@ -47,13 +44,13 @@ bool TestM2MFFramebuffer::Test() {
 
   bool pass = true;
   if (!gpum_copy(fb, src, kFbCopySize)) {
-    LogMsg("  [FAIL] Sysmem -> Framebuffer transfer timed out or failed.\n");
+    TEST_FAIL("Sysmem -> Framebuffer transfer timed out or failed.");
     pass = false;
   } else if (!M2MFVerifyPattern(fb, kFbCopySize, kSeed)) {
-    LogMsg("  [FAIL] Sysmem -> Framebuffer transfer data mismatch.\n");
+    TEST_FAIL("Sysmem -> Framebuffer transfer data mismatch.");
     pass = false;
   } else {
-    LogMsg("  [PASS] Sysmem -> Active Framebuffer aperture (4 KB) verified.\n");
+    TEST_PASS("Sysmem -> Active Framebuffer aperture (4 KB) verified.");
   }
 
   MmFreeContiguousMemory(sysmem_buf);

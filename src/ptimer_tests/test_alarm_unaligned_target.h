@@ -10,6 +10,7 @@
 //! value and does not fire as an immediate future alarm.
 struct TestAlarmUnalignedTarget {
   static constexpr const char* Name() { return "Alarm Unaligned Target"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

@@ -11,6 +11,7 @@
 //! matches the written value.
 struct TestTimeRegisterReadWrite {
   static constexpr const char* Name() { return "Time R/W & 32x Scaling"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

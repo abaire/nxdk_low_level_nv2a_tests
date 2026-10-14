@@ -3,9 +3,6 @@
 #include "ptimer_test_common.h"
 
 bool TestInterruptAcknowledge::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: Interrupt Acknowledge (Write-1-to-Clear)\n");
-
   bool pass = true;
 
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
@@ -16,30 +13,29 @@ bool TestInterruptAcknowledge::Test() {
   }
 
   uint32_t p1 = VIDEOREG(NV_PTIMER_INTR_0);
-  LogMsg("Initial pending INTR_0: 0x%08X\n", p1);
+  TEST_INFO("Initial pending INTR_0: 0x%08X", p1);
   if ((p1 & 1) == 0) {
-    LogMsg("  [FAIL] Expected pending bit to be 1 before acknowledge test!\n");
+    TEST_FAIL("Expected pending bit to be 1 before acknowledge test!");
     pass = false;
   }
 
   VIDEOREG(NV_PTIMER_INTR_0) = 0;
   uint32_t p2 = VIDEOREG(NV_PTIMER_INTR_0);
-  LogMsg("  After writing 0 to INTR_0: 0x%08X (expected 1)\n", p2);
+  TEST_INFO("After writing 0 to INTR_0: 0x%08X (expected 1)", p2);
   if ((p2 & 1) != 1) {
-    LogMsg("  [FAIL] Writing 0 cleared pending bit!\n");
+    TEST_FAIL("Writing 0 cleared pending bit!");
     pass = false;
   }
 
   VIDEOREG(NV_PTIMER_INTR_0) = 1;
   uint32_t p3 = VIDEOREG(NV_PTIMER_INTR_0);
-  LogMsg("  After writing 1 to INTR_0: 0x%08X (expected 0)\n", p3);
+  TEST_INFO("After writing 1 to INTR_0: 0x%08X (expected 0)", p3);
   if ((p3 & 1) != 0) {
-    LogMsg("  [FAIL] Writing 1 did not clear pending bit!\n");
+    TEST_FAIL("Writing 1 did not clear pending bit!");
     pass = false;
   } else if ((p2 & 1) == 1) {
-    LogMsg(
-        "  [PASS] Write-1-to-Clear verified: writing 0 retains, writing 1 "
-        "clears.\n");
+    TEST_PASS(
+        "Write-1-to-Clear verified: writing 0 retains, writing 1 clears.");
   }
 
   return pass;

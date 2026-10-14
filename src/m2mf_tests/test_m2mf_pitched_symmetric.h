@@ -11,6 +11,7 @@
 //! 3. Destination pre-guard and post-guard boundary canaries remain intact.
 struct TestM2MFPitchedSymmetric {
   static constexpr const char* Name() { return "M2MF Pitched 2D Symmetric"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

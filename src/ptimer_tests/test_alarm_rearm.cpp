@@ -3,9 +3,6 @@
 #include "ptimer_test_common.h"
 
 bool TestAlarmRearm::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: Explicit Alarm Re-arming & Triggering\n");
-
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
   VIDEOREG(NV_PTIMER_INTR_0) = 1;
 
@@ -22,8 +19,8 @@ bool TestAlarmRearm::Test() {
   VIDEOREG(NV_PTIMER_ALARM_0) = target_rearm;
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 1;
 
-  LogMsg("Testing explicit re-arm: set TIME_0=0x%08X -> ALARM_0=0x%08X\n",
-         now_low, target_rearm);
+  TEST_INFO("Testing explicit re-arm: set TIME_0=0x%08X -> ALARM_0=0x%08X",
+            now_low, target_rearm);
 
   LARGE_INTEGER qpc_start, qpc_now, qpc_freq;
   QueryPerformanceFrequency(&qpc_freq);
@@ -42,10 +39,10 @@ bool TestAlarmRearm::Test() {
   ptimer_alarm_fired_callback = nullptr;
 
   if (g_alarm_capture_count <= 0) {
-    LogMsg("  [FAIL] Explicitly reprogrammed ALARM_0 failed to fire!\n");
+    TEST_FAIL("Explicitly reprogrammed ALARM_0 failed to fire!");
     return false;
   }
 
-  LogMsg("  [PASS] Explicitly reprogrammed ALARM_0 successfully fired.\n");
+  TEST_PASS("Explicitly reprogrammed ALARM_0 successfully fired.");
   return true;
 }

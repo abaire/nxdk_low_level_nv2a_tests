@@ -22,16 +22,16 @@ static bool VerifyStridedOutput(const uint8_t* dst, const uint8_t* src,
       size_t dst_off = y * pitch_out + x * stride_out;
       size_t src_off = y * pitch_in + x * stride_in;
       if (dst_off >= total_dst_size) {
-        LogMsg("  [FAIL] Write offset %u exceeds buffer span %u\n",
-               static_cast<uint32_t>(dst_off),
-               static_cast<uint32_t>(total_dst_size));
+        TEST_FAIL("Write offset %u exceeds buffer span %u",
+                  static_cast<uint32_t>(dst_off),
+                  static_cast<uint32_t>(total_dst_size));
         return false;
       }
       written[dst_off] = true;
       if (dst[dst_off] != src[src_off]) {
-        LogMsg(
-            "  [FAIL] Value mismatch at dst[%u]: expected 0x%02X (from "
-            "src[%u]), got 0x%02X\n",
+        TEST_FAIL(
+            "Value mismatch at dst[%u]: expected 0x%02X (from src[%u]), got "
+            "0x%02X",
             static_cast<uint32_t>(dst_off), src[src_off],
             static_cast<uint32_t>(src_off), dst[dst_off]);
         return false;
@@ -41,9 +41,10 @@ static bool VerifyStridedOutput(const uint8_t* dst, const uint8_t* src,
 
   for (size_t i = 0; i < total_dst_size; ++i) {
     if (!written[i] && dst[i] != canary_dst) {
-      LogMsg(
-          "  [FAIL] Untouched gap byte dst[%u] corrupted: expected 0x%02X, got "
-          "0x%02X\n",
+      TEST_FAIL_EX(
+          TestFields("index", static_cast<uint32_t>(i), "expected", canary_dst,
+                     "actual", dst[i]),
+          "Untouched gap byte dst[%u] corrupted: expected 0x%02X, got 0x%02X",
           static_cast<uint32_t>(i), canary_dst, dst[i]);
       return false;
     }
@@ -53,11 +54,8 @@ static bool VerifyStridedOutput(const uint8_t* dst, const uint8_t* src,
 }
 
 bool TestM2MFFormat::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Format Variations\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -72,7 +70,7 @@ bool TestM2MFFormat::Test() {
       MmAllocateContiguousMemoryEx(kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_buf || !dst_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (src_buf) MmFreeContiguousMemory(src_buf);
     if (dst_buf) MmFreeContiguousMemory(dst_buf);
     return false;
@@ -99,7 +97,7 @@ bool TestM2MFFormat::Test() {
 
     void* ret = gpum_copy_strided(dst, src, 16, 1, 16, 32, 1, 2);
     if (!ret) {
-      LogMsg("  [FAIL] 0x0201 single-line transfer timed out or failed.\n");
+      TEST_FAIL("0x0201 single-line transfer timed out or failed.");
       pass = false;
     } else if (!VerifyStridedOutput(dst, src, 16, 1, 16, 32, 1, 2, kDstCanary,
                                     kDataSize) ||
@@ -107,9 +105,7 @@ bool TestM2MFFormat::Test() {
                !M2MFVerifyCanaries(dst + kDataSize, kCanarySize, 0xAA)) {
       pass = false;
     } else {
-      LogMsg(
-          "  [PASS] stride_in=1, stride_out=2 (0x0201) single-line "
-          "verified.\n");
+      TEST_PASS("stride_in=1, stride_out=2 (0x0201) single-line verified.");
     }
   }
 
@@ -123,7 +119,7 @@ bool TestM2MFFormat::Test() {
 
     void* ret = gpum_copy_strided(dst, src, 8, 2, 16, 32, 1, 2);
     if (!ret) {
-      LogMsg("  [FAIL] 0x0201 multi-line transfer timed out or failed.\n");
+      TEST_FAIL("0x0201 multi-line transfer timed out or failed.");
       pass = false;
     } else if (!VerifyStridedOutput(dst, src, 8, 2, 16, 32, 1, 2, kDstCanary,
                                     kDataSize) ||
@@ -131,9 +127,7 @@ bool TestM2MFFormat::Test() {
                !M2MFVerifyCanaries(dst + kDataSize, kCanarySize, 0xAA)) {
       pass = false;
     } else {
-      LogMsg(
-          "  [PASS] stride_in=1, stride_out=2 (0x0201) multi-line "
-          "verified.\n");
+      TEST_PASS("stride_in=1, stride_out=2 (0x0201) multi-line verified.");
     }
   }
 
@@ -146,7 +140,7 @@ bool TestM2MFFormat::Test() {
 
     void* ret = gpum_copy_strided(dst, src, 16, 1, 32, 16, 2, 1);
     if (!ret) {
-      LogMsg("  [FAIL] 0x0102 single-line transfer timed out or failed.\n");
+      TEST_FAIL("0x0102 single-line transfer timed out or failed.");
       pass = false;
     } else if (!VerifyStridedOutput(dst, src, 16, 1, 32, 16, 2, 1, kDstCanary,
                                     kDataSize) ||
@@ -154,8 +148,7 @@ bool TestM2MFFormat::Test() {
                !M2MFVerifyCanaries(dst + kDataSize, kCanarySize, 0xAA)) {
       pass = false;
     } else {
-      LogMsg(
-          "  [PASS] stride_in=2, stride_out=1 (0x0102) gathering verified.\n");
+      TEST_PASS("stride_in=2, stride_out=1 (0x0102) gathering verified.");
     }
   }
 
@@ -179,9 +172,8 @@ bool TestM2MFFormat::Test() {
     void* ret = gpum_copy_strided(dst, src, sc.line_len, 1, sc.pitch, sc.pitch,
                                   sc.stride, sc.stride);
     if (!ret) {
-      LogMsg(
-          "  [FAIL] Symmetric stride (%u, %u) transfer timed out or failed.\n",
-          sc.stride, sc.stride);
+      TEST_FAIL("Symmetric stride (%u, %u) transfer timed out or failed.",
+                sc.stride, sc.stride);
       pass = false;
     } else if (!VerifyStridedOutput(dst, src, sc.line_len, 1, sc.pitch,
                                     sc.pitch, sc.stride, sc.stride, kDstCanary,
@@ -190,8 +182,7 @@ bool TestM2MFFormat::Test() {
                !M2MFVerifyCanaries(dst + kDataSize, kCanarySize, 0xAA)) {
       pass = false;
     } else {
-      LogMsg("  [PASS] Symmetric stride (%u, %u) verified.\n", sc.stride,
-             sc.stride);
+      TEST_PASS("Symmetric stride (%u, %u) verified.", sc.stride, sc.stride);
     }
   }
 
@@ -221,7 +212,7 @@ bool TestM2MFFormat::Test() {
     void* ret = gpum_copy_strided(dst, src, ac.line_len, 1, ac.pitch_in,
                                   ac.pitch_out, ac.stride_in, ac.stride_out);
     if (!ret) {
-      LogMsg("  [FAIL] Asymmetric stride %s timed out or failed.\n", ac.desc);
+      TEST_FAIL("Asymmetric stride %s timed out or failed.", ac.desc);
       pass = false;
     } else if (!VerifyStridedOutput(dst, src, ac.line_len, 1, ac.pitch_in,
                                     ac.pitch_out, ac.stride_in, ac.stride_out,
@@ -230,7 +221,7 @@ bool TestM2MFFormat::Test() {
                !M2MFVerifyCanaries(dst + kDataSize, kCanarySize, 0xAA)) {
       pass = false;
     } else {
-      LogMsg("  [PASS] Asymmetric stride %s verified.\n", ac.desc);
+      TEST_PASS("Asymmetric stride %s verified.", ac.desc);
     }
   }
 

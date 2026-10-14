@@ -9,6 +9,7 @@
 //! interrupt (requires future match/crossing).
 struct TestAlarmSetInThePast {
   static constexpr const char* Name() { return "Alarm in the Past"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

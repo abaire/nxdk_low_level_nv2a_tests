@@ -16,11 +16,8 @@ struct AsymmetricCase {
 };
 
 bool TestM2MFPitchedAsymmetric::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Pitched 2D Asymmetric\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -34,7 +31,7 @@ bool TestM2MFPitchedAsymmetric::Test() {
       MmAllocateContiguousMemoryEx(kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_buf || !dst_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (src_buf) MmFreeContiguousMemory(src_buf);
     if (dst_buf) MmFreeContiguousMemory(dst_buf);
     return false;
@@ -64,7 +61,7 @@ bool TestM2MFPitchedAsymmetric::Test() {
     void* ret = gpum_copy_pitched(dst, src, tc.line_len, tc.lines, tc.pitch_in,
                                   tc.pitch_out);
     if (!ret) {
-      LogMsg("  [FAIL] %s: M2MF transfer failed or timed out.\n", tc.desc);
+      TEST_FAIL("%s: M2MF transfer failed or timed out.", tc.desc);
       pass = false;
       continue;
     }
@@ -75,7 +72,8 @@ bool TestM2MFPitchedAsymmetric::Test() {
       const uint8_t* d_line = dst + y * tc.pitch_out;
 
       if (std::memcmp(d_line, s_line, tc.line_len) != 0) {
-        LogMsg("  [FAIL] %s: Line %u data mismatch.\n", tc.desc, y);
+        TEST_FAIL_EX(TestFields("case", tc.desc, "line", y),
+                     "%s: Line %u data mismatch.", tc.desc, y);
         case_ok = false;
         break;
       }
@@ -84,7 +82,8 @@ bool TestM2MFPitchedAsymmetric::Test() {
         const uint8_t* gap = d_line + tc.line_len;
         size_t gap_len = tc.pitch_out - tc.line_len;
         if (!M2MFVerifyCanaries(gap, gap_len, 0xEE)) {
-          LogMsg("  [FAIL] %s: Line %u gap corrupted.\n", tc.desc, y);
+          TEST_FAIL_EX(TestFields("case", tc.desc, "line", y),
+                       "%s: Line %u gap corrupted.", tc.desc, y);
           case_ok = false;
           break;
         }
@@ -94,13 +93,13 @@ bool TestM2MFPitchedAsymmetric::Test() {
     if (case_ok) {
       if (!M2MFVerifyCanaries(dst_buf, kCanarySize, 0x55) ||
           !M2MFVerifyCanaries(dst + dst_total, kCanarySize, 0xAA)) {
-        LogMsg("  [FAIL] %s: Boundary canaries corrupted.\n", tc.desc);
+        TEST_FAIL("%s: Boundary canaries corrupted.", tc.desc);
         case_ok = false;
       }
     }
 
     if (case_ok) {
-      LogMsg("  [PASS] %s verified.\n", tc.desc);
+      TEST_PASS("%s verified.", tc.desc);
     } else {
       pass = false;
     }

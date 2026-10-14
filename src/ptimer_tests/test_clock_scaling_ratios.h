@@ -9,6 +9,7 @@
 //! DENOMINATOR register configuration against real-world elapsed time (QPC).
 struct TestClockScalingRatios {
   static constexpr const char* Name() { return "Clock Scaling Ratios"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

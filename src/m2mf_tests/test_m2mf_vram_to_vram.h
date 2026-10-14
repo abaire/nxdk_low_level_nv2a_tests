@@ -12,6 +12,7 @@
 //! 3. Destination guard canaries remain uncorrupted.
 struct TestM2MFVramToVram {
   static constexpr const char* Name() { return "M2MF VRAM (WC) to VRAM (WC)"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

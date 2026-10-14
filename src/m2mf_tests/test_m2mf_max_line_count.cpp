@@ -8,11 +8,8 @@
 #include "m2mf_test_common.h"
 
 bool TestM2MFMaxLineCount::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Max Line Count (2047)\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -28,7 +25,7 @@ bool TestM2MFMaxLineCount::Test() {
       MmAllocateContiguousMemoryEx(kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_buf || !dst_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (src_buf) MmFreeContiguousMemory(src_buf);
     if (dst_buf) MmFreeContiguousMemory(dst_buf);
     return false;
@@ -47,19 +44,18 @@ bool TestM2MFMaxLineCount::Test() {
   bool pass = true;
   if (gpum_copy_pitched(dst, src, kLineLen, kMaxLines, kLineLen, kLineLen) ==
       nullptr) {
-    LogMsg("  [FAIL] Maximum line count (2047 lines) timed out or failed.\n");
+    TEST_FAIL("Maximum line count (2047 lines) timed out or failed.");
     pass = false;
   } else if (!M2MFVerifyPattern(dst, kTotalDataSize, kSeed)) {
-    LogMsg("  [FAIL] Maximum line count (2047 lines) data mismatch.\n");
+    TEST_FAIL("Maximum line count (2047 lines) data mismatch.");
     pass = false;
   } else if (!M2MFVerifyCanaries(dst_buf, kCanarySize, 0x55) ||
              !M2MFVerifyCanaries(dst + kTotalDataSize, kCanarySize, 0xAA)) {
-    LogMsg("  [FAIL] Maximum line count corrupted boundary canaries.\n");
+    TEST_FAIL("Maximum line count corrupted boundary canaries.");
     pass = false;
   } else {
-    LogMsg(
-        "  [PASS] Maximum line count (2047 lines x 32 B = %u B) succeeded.\n",
-        kTotalDataSize);
+    TEST_PASS("Maximum line count (2047 lines x 32 B = %u B) succeeded.",
+              kTotalDataSize);
   }
 
   MmFreeContiguousMemory(src_buf);

@@ -14,6 +14,7 @@ struct TestM2MFVramToSysmem {
   static constexpr const char* Name() {
     return "M2MF VRAM (WC) to Sysmem (WB)";
   }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

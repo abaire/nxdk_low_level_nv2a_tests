@@ -8,11 +8,8 @@
 #include "m2mf_test_common.h"
 
 bool TestM2MFBatchingIndependent::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Batched Independent Transfers\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -26,7 +23,7 @@ bool TestM2MFBatchingIndependent::Test() {
       MmAllocateContiguousMemoryEx(kTotalSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_mem || !dst_mem) {
-    LogMsg("  [FAIL] Memory allocation failed for independent batch test.\n");
+    TEST_FAIL("Memory allocation failed for independent batch test.");
     if (src_mem) MmFreeContiguousMemory(src_mem);
     if (dst_mem) MmFreeContiguousMemory(dst_mem);
     return false;
@@ -64,17 +61,15 @@ bool TestM2MFBatchingIndependent::Test() {
   for (size_t i = 0; i < kNumChunks; ++i) {
     if (!M2MFVerifyPattern(dst_mem + i * kChunkSize, kChunkSize,
                            static_cast<uint8_t>(0x10 * i + 7))) {
-      LogMsg("  [FAIL] Batched transfer chunk %u data mismatch.\n", i);
+      TEST_FAIL("Batched transfer chunk %u data mismatch.", i);
       pass = false;
       break;
     }
   }
 
   if (pass) {
-    LogMsg(
-        "  [PASS] Batched independent transfers (%u chunks x %u B) "
-        "verified.\n",
-        kNumChunks, kChunkSize);
+    TEST_PASS("Batched independent transfers (%u chunks x %u B) verified.",
+              kNumChunks, kChunkSize);
   }
 
   MmFreeContiguousMemory(src_mem);

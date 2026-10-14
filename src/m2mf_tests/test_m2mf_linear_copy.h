@@ -13,6 +13,7 @@
 //! 4. Source memory buffer remains unmodified throughout the transfer.
 struct TestM2MFLinearCopy {
   static constexpr const char* Name() { return "M2MF Linear Copy"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

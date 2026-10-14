@@ -13,6 +13,7 @@
 //!    the CPU interrupt.
 struct TestAlarmFlagIsSetWhileMasked {
   static constexpr const char* Name() { return "Alarm Flag Set While Masked"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

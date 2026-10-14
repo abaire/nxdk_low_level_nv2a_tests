@@ -9,11 +9,8 @@
 #include "third_party/gpu_m2m.h"
 
 bool TestM2MFLinearCopy::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Linear Copy\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -27,7 +24,7 @@ bool TestM2MFLinearCopy::Test() {
       MmAllocateContiguousMemoryEx(kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_buf || !dst_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (src_buf) MmFreeContiguousMemory(src_buf);
     if (dst_buf) MmFreeContiguousMemory(dst_buf);
     return false;
@@ -43,14 +40,16 @@ bool TestM2MFLinearCopy::Test() {
 
   M2MFFillPattern(src, kCopySize, kSeed);
 
-  LogMsg("  Initiating gpum_copy (%u bytes)...\n", kCopySize);
+  TEST_INFO("Initiating gpum_copy (%u bytes)...", kCopySize);
   void* ret = gpum_copy(dst, src, kCopySize);
   if (!ret) {
     gpum_notifier_t notif = {0};
     gpum_notifier_dump(&notif);
-    LogMsg(
-        "  [FAIL] gpum_copy failed. Notifier: lo=0x%08X hi=0x%08X err=0x%08X "
-        "st=0x%08X\n",
+    TEST_FAIL_EX(
+        TestFields("ptimer_low", Hex32(notif.ptimer_low), "ptimer_high",
+                   Hex32(notif.ptimer_high), "error", Hex32(notif.error),
+                   "status", Hex32(notif.status)),
+        "gpum_copy failed. Notifier: lo=0x%08X hi=0x%08X err=0x%08X st=0x%08X",
         notif.ptimer_low, notif.ptimer_high, notif.error, notif.status);
     MmFreeContiguousMemory(src_buf);
     MmFreeContiguousMemory(dst_buf);
@@ -59,21 +58,20 @@ bool TestM2MFLinearCopy::Test() {
 
   bool pass = true;
   if (!M2MFVerifyPattern(dst, kCopySize, kSeed)) {
-    LogMsg("  [FAIL] Destination content does not match source pattern.\n");
+    TEST_FAIL("Destination content does not match source pattern.");
     pass = false;
   } else if (!M2MFVerifyCanaries(dst_buf, kCanarySize, 0x55)) {
-    LogMsg("  [FAIL] Pre-guard canary corrupted.\n");
+    TEST_FAIL("Pre-guard canary corrupted.");
     pass = false;
   } else if (!M2MFVerifyCanaries(dst + kCopySize, kCanarySize, 0xAA)) {
-    LogMsg("  [FAIL] Post-guard canary corrupted.\n");
+    TEST_FAIL("Post-guard canary corrupted.");
     pass = false;
   } else if (!M2MFVerifyPattern(src, kCopySize, kSeed)) {
-    LogMsg("  [FAIL] Source buffer unexpectedly modified.\n");
+    TEST_FAIL("Source buffer unexpectedly modified.");
     pass = false;
   } else {
-    LogMsg(
-        "  [PASS] Verified 4096 B copy: destination matches source, canaries "
-        "intact.\n");
+    TEST_PASS(
+        "Verified 4096 B copy: destination matches source, canaries intact.");
   }
 
   MmFreeContiguousMemory(src_buf);

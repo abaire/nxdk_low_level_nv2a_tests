@@ -8,11 +8,8 @@
 #include "m2mf_test_common.h"
 
 bool TestM2MFVramToVram::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF VRAM (WC) to VRAM (WC)\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -26,7 +23,7 @@ bool TestM2MFVramToVram::Test() {
       kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE | PAGE_WRITECOMBINE));
 
   if (!vram1_buf || !vram2_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (vram1_buf) MmFreeContiguousMemory(vram1_buf);
     if (vram2_buf) MmFreeContiguousMemory(vram2_buf);
     return false;
@@ -44,17 +41,17 @@ bool TestM2MFVramToVram::Test() {
 
   bool pass = true;
   if (!gpum_copy_wc(dst, src, kDataSize)) {
-    LogMsg("  [FAIL] VRAM -> VRAM transfer timed out or failed.\n");
+    TEST_FAIL("VRAM -> VRAM transfer timed out or failed.");
     pass = false;
   } else if (!M2MFVerifyPattern(dst, kDataSize, kSeed)) {
-    LogMsg("  [FAIL] VRAM -> VRAM transfer data mismatch.\n");
+    TEST_FAIL("VRAM -> VRAM transfer data mismatch.");
     pass = false;
   } else if (!M2MFVerifyCanaries(vram2_buf, kCanarySize, 0x55) ||
              !M2MFVerifyCanaries(dst + kDataSize, kCanarySize, 0xAA)) {
-    LogMsg("  [FAIL] VRAM -> VRAM transfer corrupted canaries.\n");
+    TEST_FAIL("VRAM -> VRAM transfer corrupted canaries.");
     pass = false;
   } else {
-    LogMsg("  [PASS] VRAM (WC) -> VRAM (WC) transfer (16 KB) verified.\n");
+    TEST_PASS("VRAM (WC) -> VRAM (WC) transfer (16 KB) verified.");
   }
 
   MmFreeContiguousMemory(vram1_buf);

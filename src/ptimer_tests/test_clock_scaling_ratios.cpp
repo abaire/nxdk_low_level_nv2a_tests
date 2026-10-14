@@ -5,9 +5,6 @@
 #include "ptimer_test_common.h"
 
 bool TestClockScalingRatios::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: Clock Scaling & Frequency Measurement\n");
-
   struct RatioTest {
     DWORD num;
     DWORD den;
@@ -53,20 +50,21 @@ bool TestClockScalingRatios::Test() {
                               ? ((double)ptimer_delta / elapsed_sec / 1000000.0)
                               : 0.0;
 
-    LogMsg("Ratio: %s (Num=%u, Den=%u)\n", r.desc, r.num, r.den);
-    LogMsg(
-        "  Measured: %.2f MHz | Expected: %.2f MHz | PTIMER delta: %llu ticks "
-        "(%.3f ms)\n",
+    TEST_INFO("Ratio: %s (Num=%lu, Den=%lu)", r.desc, r.num, r.den);
+    TEST_INFO(
+        "Measured: %.2f MHz | Expected: %.2f MHz | PTIMER delta: %llu ticks "
+        "(%.3f ms)",
         measured_mhz, r.expected_mhz, ptimer_delta, elapsed_sec * 1000.0);
 
     double percent_error =
         std::abs(measured_mhz - r.expected_mhz) / r.expected_mhz * 100.0;
     if (percent_error > 5.0) {
-      LogMsg("  [FAIL] Measured clock frequency deviated by >5%% (%.2f%%)\n",
-             percent_error);
+      TEST_FAIL_EX(TestFields("percent_error", percent_error),
+                   "Measured clock frequency deviated by >5%% (%.2f%%)",
+                   percent_error);
       pass = false;
     } else {
-      LogMsg("  [PASS] Measured clock frequency matches hardware model.\n");
+      TEST_PASS("Measured clock frequency matches hardware model.");
     }
   }
 

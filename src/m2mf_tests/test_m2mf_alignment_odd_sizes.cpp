@@ -14,11 +14,8 @@ struct OddSizeCase {
 };
 
 bool TestM2MFAlignmentOddSizes::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Alignment Odd & Prime Sizes\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -32,7 +29,7 @@ bool TestM2MFAlignmentOddSizes::Test() {
       MmAllocateContiguousMemoryEx(kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_buf || !dst_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (src_buf) MmFreeContiguousMemory(src_buf);
     if (dst_buf) MmFreeContiguousMemory(dst_buf);
     return false;
@@ -56,31 +53,29 @@ bool TestM2MFAlignmentOddSizes::Test() {
     M2MFFillPattern(src, oc.size, seed);
 
     if (!gpum_copy(dst, src, oc.size)) {
-      LogMsg(
-          "  [FAIL] Odd size %u (s+%u, d+%u): Transfer failed or timed out.\n",
-          oc.size, oc.src_align, oc.dst_align);
+      TEST_FAIL("Odd size %u (s+%u, d+%u): Transfer failed or timed out.",
+                oc.size, oc.src_align, oc.dst_align);
       pass = false;
       continue;
     }
 
     if (!M2MFVerifyPattern(dst, oc.size, seed)) {
-      LogMsg("  [FAIL] Odd size %u (s+%u, d+%u): Data mismatch.\n", oc.size,
-             oc.src_align, oc.dst_align);
+      TEST_FAIL("Odd size %u (s+%u, d+%u): Data mismatch.", oc.size,
+                oc.src_align, oc.dst_align);
       pass = false;
     } else if (!M2MFVerifyCanaries(dst_buf, kCanarySize + oc.dst_align, 0x55)) {
-      LogMsg("  [FAIL] Odd size %u (s+%u, d+%u): Pre-canary corrupted.\n",
-             oc.size, oc.src_align, oc.dst_align);
+      TEST_FAIL("Odd size %u (s+%u, d+%u): Pre-canary corrupted.", oc.size,
+                oc.src_align, oc.dst_align);
       pass = false;
     } else if (!M2MFVerifyCanaries(dst + oc.size, kCanarySize, 0xAA)) {
-      LogMsg("  [FAIL] Odd size %u (s+%u, d+%u): Post-canary corrupted.\n",
-             oc.size, oc.src_align, oc.dst_align);
+      TEST_FAIL("Odd size %u (s+%u, d+%u): Post-canary corrupted.", oc.size,
+                oc.src_align, oc.dst_align);
       pass = false;
     }
   }
 
   if (pass) {
-    LogMsg(
-        "  [PASS] Verified non-power-of-two and odd byte sizes (1..1027 B).\n");
+    TEST_PASS("Verified non-power-of-two and odd byte sizes (1..1027 B).");
   }
 
   MmFreeContiguousMemory(src_buf);

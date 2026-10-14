@@ -117,6 +117,8 @@ endmacro()
 add_library(
         test_util
         STATIC
+        test_log.cpp
+        test_log.h
         test_runner.cpp
         test_runner.h
         test_util.cpp
@@ -149,8 +151,6 @@ create_test_xiso(
         ptimer_alarm_test
         "PTIMER alarm test"
         ptimer_alarm_main.cpp
-        logger.cpp
-        logger.h
         test_suite.h
         ptimer_tests/ptimer_test_common.cpp
         ptimer_tests/ptimer_test_common.h
@@ -207,8 +207,6 @@ create_test_xiso(
         m2mf_test
         "NV2A Class 0x39 M2MF test"
         m2mf_main.cpp
-        logger.cpp
-        logger.h
         test_suite.h
         m2mf_tests/m2mf_test_common.cpp
         m2mf_tests/m2mf_test_common.h

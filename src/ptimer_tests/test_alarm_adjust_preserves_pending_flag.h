@@ -16,6 +16,7 @@
 //!    moved to the future.
 struct TestAlarmAdjustPreservesPendingFlag {
   static constexpr const char* Name() { return "Alarm Adjust Preserves Flag"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

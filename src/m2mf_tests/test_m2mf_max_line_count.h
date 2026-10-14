@@ -12,6 +12,7 @@
 //! unmodified.
 struct TestM2MFMaxLineCount {
   static constexpr const char* Name() { return "M2MF Max Line Count (2047)"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

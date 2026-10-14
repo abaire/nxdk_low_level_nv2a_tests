@@ -11,6 +11,7 @@
 //!    NV_PTIMER_INTR_0 is latched and can be detected by polling.
 struct TestAlarmFlagIsSetWhileMaskedResetTime {
   static constexpr const char* Name() { return "Alarm Flag Set (Reset Time)"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

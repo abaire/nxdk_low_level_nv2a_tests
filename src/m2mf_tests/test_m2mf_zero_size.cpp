@@ -8,11 +8,8 @@
 #include "m2mf_test_common.h"
 
 bool TestM2MFZeroSize::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Zero Count / Length\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -23,7 +20,7 @@ bool TestM2MFZeroSize::Test() {
       MmAllocateContiguousMemoryEx(kBufSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_buf || !dst_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (src_buf) MmFreeContiguousMemory(src_buf);
     if (dst_buf) MmFreeContiguousMemory(dst_buf);
     return false;
@@ -40,15 +37,13 @@ bool TestM2MFZeroSize::Test() {
   bool dst_untouched = M2MFVerifyCanaries(dst_buf, kBufSize, 0xCC);
 
   if (!zero_lines_ok) {
-    LogMsg(
-        "  [FAIL] Zero line count transfer timed out or reported failure.\n");
+    TEST_FAIL("Zero line count transfer timed out or reported failure.");
     pass = false;
   } else if (!dst_untouched) {
-    LogMsg(
-        "  [FAIL] Zero line count unexpectedly modified destination memory.\n");
+    TEST_FAIL("Zero line count unexpectedly modified destination memory.");
     pass = false;
   } else {
-    LogMsg("  [PASS] Zero line count preserved destination memory.\n");
+    TEST_PASS("Zero line count preserved destination memory.");
   }
 
   // Zero line length
@@ -58,16 +53,13 @@ bool TestM2MFZeroSize::Test() {
   dst_untouched = M2MFVerifyCanaries(dst_buf, kBufSize, 0xCC);
 
   if (!zero_len_ok) {
-    LogMsg(
-        "  [FAIL] Zero line length transfer timed out or reported failure.\n");
+    TEST_FAIL("Zero line length transfer timed out or reported failure.");
     pass = false;
   } else if (!dst_untouched) {
-    LogMsg(
-        "  [FAIL] Zero line length unexpectedly modified destination "
-        "memory.\n");
+    TEST_FAIL("Zero line length unexpectedly modified destination memory.");
     pass = false;
   } else {
-    LogMsg("  [PASS] Zero line length preserved destination memory.\n");
+    TEST_PASS("Zero line length preserved destination memory.");
   }
 
   MmFreeContiguousMemory(src_buf);

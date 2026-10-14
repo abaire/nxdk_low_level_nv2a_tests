@@ -12,6 +12,7 @@
 //!    reaching 0.
 struct TestAlarmTargetZero {
   static constexpr const char* Name() { return "Alarm Target Zero"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

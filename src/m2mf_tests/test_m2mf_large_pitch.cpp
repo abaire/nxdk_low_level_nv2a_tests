@@ -8,11 +8,8 @@
 #include "m2mf_test_common.h"
 
 bool TestM2MFLargePitch::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Large Pitch Stride (16 KB)\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -29,7 +26,7 @@ bool TestM2MFLargePitch::Test() {
       MmAllocateContiguousMemoryEx(kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_buf || !dst_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (src_buf) MmFreeContiguousMemory(src_buf);
     if (dst_buf) MmFreeContiguousMemory(dst_buf);
     return false;
@@ -46,7 +43,7 @@ bool TestM2MFLargePitch::Test() {
   bool pass = true;
   if (gpum_copy_pitched(dst, src, kPitchedLen, kPitchedLines, kLargePitch,
                         kLargePitch) == nullptr) {
-    LogMsg("  [FAIL] Large pitch (16384 B) transfer timed out or failed.\n");
+    TEST_FAIL("Large pitch (16384 B) transfer timed out or failed.");
     pass = false;
   } else {
     bool pitched_ok = true;
@@ -63,14 +60,14 @@ bool TestM2MFLargePitch::Test() {
       }
     }
     if (!pitched_ok) {
-      LogMsg("  [FAIL] Large pitch transfer data or gap mismatch.\n");
+      TEST_FAIL("Large pitch transfer data or gap mismatch.");
       pass = false;
     } else if (!M2MFVerifyCanaries(dst_buf, kCanarySize, 0x55) ||
                !M2MFVerifyCanaries(dst + kTotalSpan, kCanarySize, 0xAA)) {
-      LogMsg("  [FAIL] Large pitch corrupted outer guard canaries.\n");
+      TEST_FAIL("Large pitch corrupted outer guard canaries.");
       pass = false;
     } else {
-      LogMsg("  [PASS] Large pitch (16384 B stride) succeeded.\n");
+      TEST_PASS("Large pitch (16384 B stride) succeeded.");
     }
   }
 

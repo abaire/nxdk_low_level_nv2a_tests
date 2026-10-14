@@ -8,11 +8,8 @@
 #include "m2mf_test_common.h"
 
 bool TestM2MFPitchedSymmetric::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: M2MF Pitched 2D Symmetric\n");
-
   if (!M2MFInit()) {
-    LogMsg("  [FAIL] Failed to initialize M2MF engine.\n");
+    TEST_FAIL("Failed to initialize M2MF engine.");
     return false;
   }
 
@@ -29,7 +26,7 @@ bool TestM2MFPitchedSymmetric::Test() {
       MmAllocateContiguousMemoryEx(kAllocSize, 0, MAXRAM, 0, PAGE_READWRITE));
 
   if (!src_buf || !dst_buf) {
-    LogMsg("  [FAIL] Failed to allocate test memory buffers.\n");
+    TEST_FAIL("Failed to allocate test memory buffers.");
     if (src_buf) MmFreeContiguousMemory(src_buf);
     if (dst_buf) MmFreeContiguousMemory(dst_buf);
     return false;
@@ -48,7 +45,7 @@ bool TestM2MFPitchedSymmetric::Test() {
   bool pass = true;
   void* ret = gpum_copy_pitched(dst, src, kLineLen, kLines, kPitch, kPitch);
   if (!ret) {
-    LogMsg("  [FAIL] Symmetric pitched transfer timed out or failed.\n");
+    TEST_FAIL("Symmetric pitched transfer timed out or failed.");
     pass = false;
   } else {
     bool data_ok = true;
@@ -57,7 +54,7 @@ bool TestM2MFPitchedSymmetric::Test() {
       const uint8_t* d_line = dst + y * kPitch;
 
       if (std::memcmp(d_line, s_line, kLineLen) != 0) {
-        LogMsg("  [FAIL] Line %u data mismatch.\n", y);
+        TEST_FAIL_EX(TestFields("line", y), "Line %u data mismatch.", y);
         data_ok = false;
         break;
       }
@@ -65,7 +62,8 @@ bool TestM2MFPitchedSymmetric::Test() {
       const uint8_t* gap = d_line + kLineLen;
       size_t gap_len = kPitch - kLineLen;
       if (!M2MFVerifyCanaries(gap, gap_len, 0xEE)) {
-        LogMsg("  [FAIL] Line %u inter-line gap corrupted.\n", y);
+        TEST_FAIL_EX(TestFields("line", y), "Line %u inter-line gap corrupted.",
+                     y);
         data_ok = false;
         break;
       }
@@ -75,12 +73,11 @@ bool TestM2MFPitchedSymmetric::Test() {
       pass = false;
     } else if (!M2MFVerifyCanaries(dst_buf, kCanarySize, 0x55) ||
                !M2MFVerifyCanaries(dst + kTotalData, kCanarySize, 0xAA)) {
-      LogMsg("  [FAIL] Outer boundary canaries corrupted.\n");
+      TEST_FAIL("Outer boundary canaries corrupted.");
       pass = false;
     } else {
-      LogMsg(
-          "  [PASS] Symmetric pitched transfer (len=%u, pitch=%u, lines=%u) "
-          "verified.\n",
+      TEST_PASS(
+          "Symmetric pitched transfer (len=%u, pitch=%u, lines=%u) verified.",
           kLineLen, kPitch, kLines);
     }
   }

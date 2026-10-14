@@ -10,6 +10,7 @@
 //! 3. TIME_1 masks out the upper 3 unused bits (bits [31:29] read back as 0).
 struct TestRegisterBitmasks {
   static constexpr const char* Name() { return "Register Bitmasks"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

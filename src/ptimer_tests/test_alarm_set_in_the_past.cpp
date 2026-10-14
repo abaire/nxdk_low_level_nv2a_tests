@@ -3,9 +3,6 @@
 #include "ptimer_test_common.h"
 
 bool TestAlarmSetInThePast::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: Alarm Set in the Past\n");
-
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
   VIDEOREG(NV_PTIMER_INTR_0) = 1;
 
@@ -17,9 +14,8 @@ bool TestAlarmSetInThePast::Test() {
   VIDEOREG(NV_PTIMER_ALARM_0) = 0x10000000;
 
   uint32_t intr_before = VIDEOREG(NV_PTIMER_INTR_0);
-  LogMsg(
-      "Set TIME_0=0x20000000, ALARM_0=0x10000000. INTR_0 before enable: "
-      "0x%08X\n",
+  TEST_INFO(
+      "Set TIME_0=0x20000000, ALARM_0=0x10000000. INTR_0 before enable: 0x%08X",
       intr_before);
 
   ptimer_alarm_count = 0;
@@ -45,15 +41,14 @@ bool TestAlarmSetInThePast::Test() {
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
   ptimer_alarm_fired_callback = nullptr;
 
-  LogMsg("Result after 100ms: Alarm firings=%u, INTR_0=0x%08X\n",
-         g_alarm_capture_count, intr_after);
+  TEST_INFO("Result after 100ms: Alarm firings=%u, INTR_0=0x%08X",
+            g_alarm_capture_count, intr_after);
 
   if (g_alarm_capture_count == 0 && (intr_after & 1) == 0) {
-    LogMsg(
-        "  [PASS] Hardware verified: Past alarm does not fire immediately.\n");
+    TEST_PASS("Hardware verified: Past alarm does not fire immediately.");
     return true;
   }
 
-  LogMsg("  [FAIL] Past alarm incorrectly fired immediately!\n");
+  TEST_FAIL("Past alarm incorrectly fired immediately!");
   return false;
 }

@@ -11,6 +11,7 @@
 //! alignment offset.
 struct TestM2MFAlignmentPhases {
   static constexpr const char* Name() { return "M2MF Alignment Phase Matrix"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

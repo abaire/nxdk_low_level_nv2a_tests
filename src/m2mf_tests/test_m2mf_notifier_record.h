@@ -15,6 +15,7 @@ struct TestM2MFNotifierRecord {
   static constexpr const char* Name() {
     return "M2MF Notifier Completion Record";
   }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

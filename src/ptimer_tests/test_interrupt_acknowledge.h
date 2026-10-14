@@ -10,6 +10,7 @@
 //! 0.
 struct TestInterruptAcknowledge {
   static constexpr const char* Name() { return "Interrupt Acknowledge (W1C)"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

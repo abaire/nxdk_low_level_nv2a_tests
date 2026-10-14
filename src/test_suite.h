@@ -4,10 +4,11 @@
 struct TestCase {
   const char* name;
   bool (*test_function)();
+  const char* source;
 
   template <typename T>
   static constexpr TestCase From() {
-    return TestCase{T::Name(), &T::Test};
+    return TestCase{T::Name(), &T::Test, T::Source()};
   }
 };
 

@@ -8,6 +8,7 @@
 //! Configuring NUMERATOR=0, DENOMINATOR=0, or both does not raise an exception.
 struct TestZeroDivisorClock {
   static constexpr const char* Name() { return "Zero-Divisor Clock Handling"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

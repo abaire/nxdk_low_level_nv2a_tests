@@ -9,6 +9,8 @@
 #include <deque>
 #include <string>
 
+#include "test_log.h"
+
 extern "C" volatile DWORD ptimer_alarm_count;
 extern "C" void (*ptimer_alarm_fired_callback)(void);
 
@@ -42,10 +44,6 @@ static inline uint64_t GetTSCTime() {
   __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
   return ((uint64_t)hi << 32) | lo;
 }
-
-void LogMsg(const char* fmt, ...);
-const std::deque<std::string>& GetOnScreenLog();
-void ClearOnScreenLog();
 
 struct AlarmCapture {
   uint32_t alarm_count;

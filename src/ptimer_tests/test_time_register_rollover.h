@@ -9,6 +9,7 @@
 //! increments by 1.
 struct TestTimeRegisterRollover {
   static constexpr const char* Name() { return "Time 64-bit Carry & Rollover"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 

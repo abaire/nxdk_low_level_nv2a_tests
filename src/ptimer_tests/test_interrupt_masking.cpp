@@ -3,9 +3,6 @@
 #include "ptimer_test_common.h"
 
 bool TestInterruptMasking::Test() {
-  LogMsg("\n============================================================\n");
-  LogMsg("Test: Interrupt Masking & Pending Latching\n");
-
   bool pass = true;
 
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
@@ -24,43 +21,41 @@ bool TestInterruptMasking::Test() {
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 1;
   VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
 
-  LogMsg(
-      "Disarmed INTR_EN_0 in-flight; waiting for TIME_0 to cross ALARM_0...\n");
+  TEST_INFO(
+      "Disarmed INTR_EN_0 in-flight; waiting for TIME_0 to cross ALARM_0...");
   while (VIDEOREG(NV_PTIMER_TIME_0) < 0x00030000) {
   }
 
-  LogMsg("  Firings while disabled: %u\n", g_alarm_capture_count);
+  TEST_INFO("Firings while disabled: %u", g_alarm_capture_count);
   if (g_alarm_capture_count != 0) {
-    LogMsg("  [FAIL] CPU interrupt fired while INTR_EN_0 was disabled!\n");
+    TEST_FAIL("CPU interrupt fired while INTR_EN_0 was disabled!");
     pass = false;
   } else {
-    LogMsg("  [PASS] No CPU interrupt fired while disabled.\n");
+    TEST_PASS("No CPU interrupt fired while disabled.");
   }
 
   uint32_t pending_masked = VIDEOREG(NV_PTIMER_INTR_0);
-  LogMsg("  INTR_0 after crossing threshold: 0x%08X (bit 0 expected = 1)\n",
-         pending_masked);
+  TEST_INFO("INTR_0 after crossing threshold: 0x%08X (bit 0 expected = 1)",
+            pending_masked);
   if ((pending_masked & 1) == 0) {
-    LogMsg("  [FAIL] Pending bit did NOT latch when masked.\n");
+    TEST_FAIL("Pending bit did NOT latch when masked.");
     pass = false;
   } else {
-    LogMsg(
-        "  [PASS] Pending bit correctly latched while interrupt was masked.\n");
+    TEST_PASS("Pending bit correctly latched while interrupt was masked.");
   }
 
   if (pending_masked & 1) {
-    LogMsg("Re-enabling INTR_EN_0 = 1 with pending bit set...\n");
+    TEST_INFO("Re-enabling INTR_EN_0 = 1 with pending bit set...");
     VIDEOREG(NV_PTIMER_INTR_EN_0) = 1;
     Sleep(5);
     VIDEOREG(NV_PTIMER_INTR_EN_0) = 0;
     ptimer_alarm_fired_callback = nullptr;
 
-    LogMsg("  Alarm firings: %u\n", g_alarm_capture_count);
+    TEST_INFO("Alarm firings: %u", g_alarm_capture_count);
     if (g_alarm_capture_count > 0) {
-      LogMsg(
-          "  [PASS] CPU interrupt fired upon enabling with pending bit set.\n");
+      TEST_PASS("CPU interrupt fired upon enabling with pending bit set.");
     } else {
-      LogMsg("  [FAIL] CPU interrupt did not fire upon unmasking!\n");
+      TEST_FAIL("CPU interrupt did not fire upon unmasking!");
       pass = false;
     }
   }

@@ -9,6 +9,7 @@
 //! needing to be rearmed.
 struct TestAlarmRolloverAndPeriodicity {
   static constexpr const char* Name() { return "Alarm Rollover & Periodicity"; }
+  static constexpr const char* Source() { return __FILE__; }
   static bool Test();
 };
 
