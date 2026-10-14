@@ -130,6 +130,7 @@ target_include_directories(
         PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}"
         "${CMAKE_SOURCE_DIR}/third_party"
+        "${CMAKE_CURRENT_BINARY_DIR}"
 )
 target_link_libraries(
         test_util

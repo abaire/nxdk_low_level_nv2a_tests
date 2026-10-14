@@ -1,4 +1,6 @@
 #ifndef APP_CONFIGURE_H_IN_H_
 #define APP_CONFIGURE_H_IN_H_
 
+#cmakedefine LOCATION_URL_BASE "@LOCATION_URL_BASE@"
+
 #endif  // APP_CONFIGURE_H_IN_H_

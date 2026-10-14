@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <fstream>
 
+#include "configure.h"
 #include "printf/printf.h"
 
 namespace {
@@ -268,7 +269,12 @@ void BeginSuite(const std::string& suite_name) {
   g_state.has_tests = false;
   g_state.array_has_item.assign(1, false);
 
-  std::string out = "{\n  \"schema_version\": 1,\n  \"suite\": ";
+  std::string out = "{\n  \"schema_version\": 1";
+#ifdef LOCATION_URL_BASE
+  out += ",\n  \"location_url_base\": ";
+  AppendJsonString(out, LOCATION_URL_BASE);
+#endif
+  out += ",\n  \"suite\": ";
   AppendJsonString(out, suite_name);
   out += ",\n  \"events\": [";
   AppendToFile(out);

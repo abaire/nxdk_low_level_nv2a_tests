@@ -33,4 +33,12 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(pbkitplusplus)
 
 add_subdirectory(third_party)
+
+set(
+        LOCATION_URL_BASE
+        ""
+        CACHE STRING
+        "Permanent URL at which the source code used to build this program may be located"
+)
+
 add_subdirectory(src)

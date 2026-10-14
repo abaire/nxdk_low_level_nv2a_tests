@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+
     paths-ignore:
       - '.github/**'
       - '!.github/workflows/**'
@@ -19,42 +20,43 @@ jobs:
     name: Build ISO
     runs-on: ubuntu-latest
     steps:
-    - name: Clone tree
-      uses: actions/checkout@v7
-      with:
-        submodules: recursive
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          llvm \
-          lld
-        pip3 install nv2a-vsh
+      - name: Clone tree
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            llvm \
+            lld
+          pip3 install nv2a-vsh
 
-    - name: Compile
-      run: |
-        export NXDK_DIR="${GITHUB_WORKSPACE}/third_party/nxdk"
-        cmake -B build \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_TOOLCHAIN_FILE="${NXDK_DIR}/share/toolchain-nxdk.cmake"
-        cmake --build build -- -j$(grep -c processor /proc/cpuinfo)
+      - name: Compile
+        run: |
+          export NXDK_DIR="${GITHUB_WORKSPACE}/third_party/nxdk"
+          cmake -B build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_TOOLCHAIN_FILE="${NXDK_DIR}/share/toolchain-nxdk.cmake" \
+                -DLOCATION_URL_BASE:STRING="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}"
+          cmake --build build -- -j$(grep -c processor /proc/cpuinfo)
 
-    - name: Stage ISOs
-      run: |
-        mkdir -p dist
-        for iso in \
-          m2mf_test_xiso/m2mf_test_xiso.iso \
-          ptimer_alarm_test_xiso/ptimer_alarm_test_xiso.iso
-        do
-          mkdir -p "dist/$(dirname "$iso")"
-          cp "build/src/xiso/$iso" "dist/$iso"
-        done
+      - name: Stage ISOs
+        run: |
+          mkdir -p dist
+          for iso in \
+            m2mf_test_xiso/m2mf_test_xiso.iso \
+            ptimer_alarm_test_xiso/ptimer_alarm_test_xiso.iso
+          do
+            mkdir -p "dist/$(dirname "$iso")"
+            cp "build/src/xiso/$iso" "dist/$iso"
+          done
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v7
-      with:
-        name: isos
-        path: dist/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: isos
+          path: dist/
 
   CreateRelease:
     needs: [ BuildISO ]
@@ -92,7 +94,6 @@ jobs:
           draft: false
           files: dist/**/*.iso
 
-
   BuildMacOS:
     name: Build macOS
     runs-on: macOS-latest
@@ -127,5 +128,6 @@ jobs:
           cmake -B build \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_TOOLCHAIN_FILE="${NXDK_DIR}/share/toolchain-nxdk.cmake" \
-                -DDUMP_CONFIG_FILE=OFF
+                -DDUMP_CONFIG_FILE=OFF \
+                -DLOCATION_URL_BASE:STRING="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}"
           cmake --build build -- -j
