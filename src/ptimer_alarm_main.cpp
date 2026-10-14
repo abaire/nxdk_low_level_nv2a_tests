@@ -23,7 +23,7 @@
 #include "test_suite.h"
 
 static const char* kDefaultLogPath =
-    R"(e:\devkit\nxdk_low_level_nv2a_tests\log.txt)";
+    R"(e:\devkit\nxdk_low_level_nv2a_tests\ptimer_alarm_log.json)";
 
 static constexpr TestCase kTests[] = {
     TestCase::From<TestAlarmUnprogrammed>(),

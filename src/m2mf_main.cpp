@@ -26,7 +26,7 @@
 #include "test_suite.h"
 
 static const char* kDefaultLogPath =
-    R"(e:\devkit\nxdk_low_level_nv2a_tests\m2mf_log.txt)";
+    R"(e:\devkit\nxdk_low_level_nv2a_tests\m2mf_log.json)";
 
 static constexpr TestCase kTests[] = {
     TestCase::From<TestM2MFAlignmentOddSizes>(),
