@@ -45,13 +45,14 @@ static constexpr TestCase kTests[] = {
 };
 
 int main() {
-  RunPreInitBootAlarmTest();
+  TestRunner runner("NV2A PTIMER", kDefaultLogPath, kTests, std::size(kTests),
+                    []() {
+                      RunPreInitBootAlarmTest();
 
-  g_clock_state.Init();
+                      g_clock_state.Init();
 
-  VIDEOREG(NV_PTIMER_NUMERATOR) = kTestNumerator;
-  VIDEOREG(NV_PTIMER_DENOMINATOR) = kTestDenominator;
-
-  TestRunner runner("NV2A PTIMER", kDefaultLogPath, kTests, std::size(kTests));
+                      VIDEOREG(NV_PTIMER_NUMERATOR) = kTestNumerator;
+                      VIDEOREG(NV_PTIMER_DENOMINATOR) = kTestDenominator;
+                    });
   return runner.Run();
 }

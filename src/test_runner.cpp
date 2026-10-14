@@ -12,6 +12,7 @@
 #include <cctype>
 #include <fstream>
 #include <sstream>
+#include <utility>
 
 #include "logger.h"
 #include "nv2astate.h"
@@ -36,11 +37,13 @@ static inline std::string ToLower(std::string str) {
 
 TestRunner::TestRunner(const std::string& suite_name,
                        const std::string& default_log_path,
-                       const TestCase* tests, size_t num_tests)
+                       const TestCase* tests, size_t num_tests,
+                       PostInitCallback post_init)
     : suite_name_(suite_name),
       log_path_(default_log_path),
       tests_(tests),
-      num_tests_(num_tests) {}
+      num_tests_(num_tests),
+      post_init_(std::move(post_init)) {}
 
 void TestRunner::LoadConfiguration() {
   debugPrint("Mounting Drive C: to check for configuration...\n");
@@ -201,6 +204,10 @@ int TestRunner::Run() {
   pb_print("Testing (this may take some time)...\n");
   pb_draw_text_screen();
   PBKitPlusPlus::NV2AState::FinishDraw();
+
+  if (post_init_) {
+    post_init_();
+  }
 
   LogMsg("Running test suite...\n");
   RunAllTests();

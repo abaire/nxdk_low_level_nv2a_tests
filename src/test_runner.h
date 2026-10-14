@@ -1,6 +1,7 @@
 #ifndef NXDK_LOW_LEVEL_NV2A_TESTS_TEST_RUNNER_H
 #define NXDK_LOW_LEVEL_NV2A_TESTS_TEST_RUNNER_H
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -12,8 +13,13 @@
 //! for headless automated testing.
 class TestRunner {
  public:
+  //! Invoked from Run() after video, pbkit, SDL, configuration and logging have
+  //! been initialized and immediately before the test suite starts.
+  using PostInitCallback = std::function<void()>;
+
   TestRunner(const std::string& suite_name, const std::string& default_log_path,
-             const TestCase* tests, size_t num_tests);
+             const TestCase* tests, size_t num_tests,
+             PostInitCallback post_init = nullptr);
 
   int Run();
 
@@ -29,6 +35,7 @@ class TestRunner {
   bool shutdown_on_completion_ = false;
   const TestCase* tests_;
   size_t num_tests_;
+  PostInitCallback post_init_;
   std::vector<bool> results_;
 };
 
