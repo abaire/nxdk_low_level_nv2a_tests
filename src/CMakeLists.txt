@@ -7,6 +7,21 @@ find_package(Threads REQUIRED)
 configure_file(configure.h.in configure.h)
 
 # ---------------------------------------------------------------------------
+# Vertex Shaders
+# ---------------------------------------------------------------------------
+
+include(NV2A_VSH REQUIRED)
+generate_nv2a_vshinc_files(
+        OUTPUT_VARIABLE _VERTEX_SHADER_FILES
+        INCLUDE_DIRECTORIES_VARIABLE _VERTEX_SHADER_INCLUDE_DIRS
+        GENERATION_TARGET_VARIABLE _VERTEX_SHADER_GEN_TARGET
+        SOURCES
+        vsh_tests/vsh_a0_relative.vsh
+        vsh_tests/vsh_a0_relative_max_offset.vsh
+        vsh_tests/vsh_log.vsh
+)
+
+# ---------------------------------------------------------------------------
 # Compiler Options Macros
 # ---------------------------------------------------------------------------
 
@@ -249,6 +264,24 @@ create_test_xiso(
         m2mf_tests/test_m2mf_vram_to_vram.h
         m2mf_tests/test_m2mf_zero_size.cpp
         m2mf_tests/test_m2mf_zero_size.h
+)
+
+# vsh_test
+create_test_xiso(
+        vsh_test
+        "NV2A programmable vertex shader tests"
+        vsh_main.cpp
+        test_suite.h
+        vsh_tests/vsh_test_common.cpp
+        vsh_tests/vsh_test_common.h
+        vsh_tests/test_vsh_a0_before_start.cpp
+        vsh_tests/test_vsh_a0_before_start.h
+        vsh_tests/test_vsh_a0_beyond_end.cpp
+        vsh_tests/test_vsh_a0_beyond_end.h
+        vsh_tests/test_vsh_a0_offset_beyond_end.cpp
+        vsh_tests/test_vsh_a0_offset_beyond_end.h
+        vsh_tests/test_vsh_log_negative_exponent.cpp
+        vsh_tests/test_vsh_log_negative_exponent.h
 )
 
 # xemu_guest_info
