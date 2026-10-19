@@ -21,7 +21,7 @@ constexpr size_t kProbeCount = std::size(kProbes);
 constexpr size_t kDenormalProbe = 4;  // 0x00000001
 
 enum class Outcome {
-  kFlushedOnInput,
+  kOperandReadAsZero,
   kLogFlushes,
   kFieldExponent,
   kNormalized,
@@ -30,8 +30,8 @@ enum class Outcome {
 
 const char* OutcomeName(Outcome outcome) {
   switch (outcome) {
-    case Outcome::kFlushedOnInput:
-      return "flushed_on_input";
+    case Outcome::kOperandReadAsZero:
+      return "operand_read_as_zero";
     case Outcome::kLogFlushes:
       return "preserved_log_flushes";
     case Outcome::kFieldExponent:
@@ -144,7 +144,7 @@ Outcome Classify(uint32_t log_rgb, uint32_t mul_rgb) {
   const bool preserved = Red(mul_rgb) != 0 || Green(mul_rgb) != 0;
   const uint32_t red = Red(log_rgb);
   if (red == 0) {
-    return preserved ? Outcome::kLogFlushes : Outcome::kFlushedOnInput;
+    return preserved ? Outcome::kLogFlushes : Outcome::kOperandReadAsZero;
   }
   if (Near(red, kExponentBias - 127)) {
     return Outcome::kFieldExponent;

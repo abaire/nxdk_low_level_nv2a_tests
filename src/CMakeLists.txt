@@ -23,6 +23,14 @@ generate_nv2a_vshinc_files(
         vsh_tests/vsh_log_denormal_const.vsh
         vsh_tests/vsh_mul_denormal_attr.vsh
         vsh_tests/vsh_mul_denormal_const.vsh
+        vsh_tests/vsh_compute_americas_army.vsh
+        vsh_tests/vsh_compute_ilu_rcp.vsh
+        vsh_tests/vsh_compute_inline_attributes.vsh
+        vsh_tests/vsh_compute_mac_add.vsh
+        vsh_tests/vsh_compute_mac_mov.vsh
+        vsh_tests/vsh_compute_paired_ilu.vsh
+        vsh_tests/vsh_compute_spy_vs_spy_menu.vsh
+        vsh_tests/vsh_compute_v1_passthrough.vsh
 )
 
 # ---------------------------------------------------------------------------
@@ -288,6 +296,22 @@ create_test_xiso(
         vsh_tests/test_vsh_log_negative_exponent.h
         vsh_tests/test_vsh_log_denormal.cpp
         vsh_tests/test_vsh_log_denormal.h
+        vsh_tests/test_vsh_mac_mov.cpp
+        vsh_tests/test_vsh_mac_mov.h
+        vsh_tests/test_vsh_mac_add.cpp
+        vsh_tests/test_vsh_mac_add.h
+        vsh_tests/test_vsh_ilu_rcp.cpp
+        vsh_tests/test_vsh_ilu_rcp.h
+        vsh_tests/test_vsh_paired_ilu.cpp
+        vsh_tests/test_vsh_paired_ilu.h
+        vsh_tests/test_vsh_americas_army.cpp
+        vsh_tests/test_vsh_americas_army.h
+        vsh_tests/test_vsh_spy_vs_spy_menu.cpp
+        vsh_tests/test_vsh_spy_vs_spy_menu.h
+        vsh_tests/test_vsh_inline_exceptional_float.cpp
+        vsh_tests/test_vsh_inline_exceptional_float.h
+        vsh_tests/test_vsh_vertex_array_format.cpp
+        vsh_tests/test_vsh_vertex_array_format.h
 )
 
 # xemu_guest_info
