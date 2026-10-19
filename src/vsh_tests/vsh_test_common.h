@@ -17,6 +17,15 @@ enum class ProbeShader {
   kOffset191,
   //! diffuse = LOG(iTex0.x).x + c[0].z
   kLogX,
+  //! Denormal inspection of LOGP(v), v read from iTex0.x. See
+  //! vsh_log_denormal_attr.vsh for the output encoding.
+  kLogDenormalAttr,
+  //! As kLogDenormalAttr, with v read from c[190].x.
+  kLogDenormalConst,
+  //! Pass-through check of v * 2^126 and v * 2^149, v read from iTex0.x.
+  kMulDenormalAttr,
+  //! As kMulDenormalAttr, with v read from c[190].x.
+  kMulDenormalConst,
 };
 
 //! The shader constant file is loaded with c[i] = (i / 255, 1, 0.5, 1) so that
@@ -50,6 +59,13 @@ bool VshInit();
 //! NV_PGRAPH_INTR sampled after the draw completes.
 bool VshRunProbes(ProbeShader shader, const float* a0_values, size_t count,
                   uint32_t* out_rgb, uint32_t* pgraph_intr);
+
+//! Like VshRunProbes, but the per-probe input is a raw 32-bit pattern delivered
+//! unmodified to the shader (via iTex0.x for the *Attr shaders or c[190].x for
+//! the *Const shaders). Constants c[189] = (2^126, 2^75, 2^74, 1) are loaded
+//! for the kMulDenormal* shaders.
+bool VshRunRawProbes(ProbeShader shader, const uint32_t* bits, size_t count,
+                     uint32_t* out_rgb, uint32_t* pgraph_intr);
 
 A0ReadResult DecodeA0Read(uint32_t rgb);
 

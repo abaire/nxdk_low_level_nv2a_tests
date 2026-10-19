@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include <cmath>
+#include <cstring>
 #include <memory>
 
 #include "nv2astate.h"
@@ -26,6 +27,18 @@ static const uint32_t kOffset191Vsh[] = {
 static const uint32_t kLogVsh[] = {
 #include "vsh_log.vshinc"
 };
+static const uint32_t kLogDenormalAttrVsh[] = {
+#include "vsh_log_denormal_attr.vshinc"
+};
+static const uint32_t kLogDenormalConstVsh[] = {
+#include "vsh_log_denormal_const.vshinc"
+};
+static const uint32_t kMulDenormalAttrVsh[] = {
+#include "vsh_mul_denormal_attr.vshinc"
+};
+static const uint32_t kMulDenormalConstVsh[] = {
+#include "vsh_mul_denormal_const.vshinc"
+};
 // clang-format on
 
 static constexpr uint32_t kMaxProbes = 64;
@@ -39,6 +52,10 @@ static std::unique_ptr<NV2AState> g_state;
 static std::shared_ptr<VertexShaderProgram> g_offset0_shader;
 static std::shared_ptr<VertexShaderProgram> g_offset191_shader;
 static std::shared_ptr<VertexShaderProgram> g_log_shader;
+static std::shared_ptr<VertexShaderProgram> g_log_denormal_attr_shader;
+static std::shared_ptr<VertexShaderProgram> g_log_denormal_const_shader;
+static std::shared_ptr<VertexShaderProgram> g_mul_denormal_attr_shader;
+static std::shared_ptr<VertexShaderProgram> g_mul_denormal_const_shader;
 
 static void SetupRenderState(NV2AState& state) {
   state.SetSurfaceFormat(NV2AState::SCF_A8R8G8B8, NV2AState::SZF_Z16,
@@ -128,18 +145,20 @@ bool VshInit() {
       kOffset191Vsh, sizeof(kOffset191Vsh));
   g_log_shader =
       std::make_shared<VertexShaderProgram>(kLogVsh, sizeof(kLogVsh));
+  g_log_denormal_attr_shader = std::make_shared<VertexShaderProgram>(
+      kLogDenormalAttrVsh, sizeof(kLogDenormalAttrVsh));
+  g_log_denormal_const_shader = std::make_shared<VertexShaderProgram>(
+      kLogDenormalConstVsh, sizeof(kLogDenormalConstVsh));
+  g_mul_denormal_attr_shader = std::make_shared<VertexShaderProgram>(
+      kMulDenormalAttrVsh, sizeof(kMulDenormalAttrVsh));
+  g_mul_denormal_const_shader = std::make_shared<VertexShaderProgram>(
+      kMulDenormalConstVsh, sizeof(kMulDenormalConstVsh));
 
   NV2AState::PBKitBusyWait();
   return true;
 }
 
-bool VshRunProbes(ProbeShader shader, const float* a0_values, size_t count,
-                  uint32_t* out_rgb, uint32_t* pgraph_intr) {
-  if (!g_state || count > kMaxProbes) {
-    return false;
-  }
-
-  auto& state = *g_state;
+static void SelectShader(NV2AState& state, ProbeShader shader) {
   switch (shader) {
     case ProbeShader::kOffset0:
       state.SetVertexShaderProgram(g_offset0_shader);
@@ -150,7 +169,97 @@ bool VshRunProbes(ProbeShader shader, const float* a0_values, size_t count,
     case ProbeShader::kLogX:
       state.SetVertexShaderProgram(g_log_shader);
       break;
+    case ProbeShader::kLogDenormalAttr:
+      state.SetVertexShaderProgram(g_log_denormal_attr_shader);
+      break;
+    case ProbeShader::kLogDenormalConst:
+      state.SetVertexShaderProgram(g_log_denormal_const_shader);
+      break;
+    case ProbeShader::kMulDenormalAttr:
+      state.SetVertexShaderProgram(g_mul_denormal_attr_shader);
+      break;
+    case ProbeShader::kMulDenormalConst:
+      state.SetVertexShaderProgram(g_mul_denormal_const_shader);
+      break;
   }
+}
+
+static void ReadProbes(size_t count, uint32_t* out_rgb) {
+  const auto* fb = reinterpret_cast<const uint8_t*>(pb_back_buffer());
+  const uint32_t pitch = pb_back_buffer_pitch();
+  for (size_t i = 0; i < count; ++i) {
+    const uint32_t x = (i % kProbesPerRow) * kProbeSize + kProbeSize / 2;
+    const uint32_t y = (i / kProbesPerRow) * kProbeSize + kProbeSize / 2;
+    const auto* pixel = reinterpret_cast<const uint32_t*>(fb + y * pitch) + x;
+    out_rgb[i] = *pixel & 0x00FFFFFF;
+  }
+}
+
+bool VshRunRawProbes(ProbeShader shader, const uint32_t* bits, size_t count,
+                     uint32_t* out_rgb, uint32_t* pgraph_intr) {
+  if (!g_state || count > kMaxProbes) {
+    return false;
+  }
+
+  const bool use_constant = shader == ProbeShader::kLogDenormalConst ||
+                            shader == ProbeShader::kMulDenormalConst;
+
+  auto& state = *g_state;
+  SelectShader(state, shader);
+  state.PrepareDraw(0xFF000000);
+  UploadProbeConstants();
+
+  const float scale_words[4] = {0x1p126f, 0x1p75f, 0x1p74f, 1.0f};
+  Pushbuffer::Begin();
+  Pushbuffer::Push(NV097_SET_TRANSFORM_CONSTANT_LOAD, 189);
+  Pushbuffer::PushN(NV097_SET_TRANSFORM_CONSTANT, 4,
+                    reinterpret_cast<const DWORD*>(scale_words));
+  Pushbuffer::End();
+
+  const float size = static_cast<float>(kProbeSize);
+  for (size_t i = 0; i < count; ++i) {
+    const float left = static_cast<float>((i % kProbesPerRow) * kProbeSize);
+    const float top = static_cast<float>((i / kProbesPerRow) * kProbeSize);
+
+    // The raw bits are never used in float arithmetic on the CPU.
+    uint32_t words[4] = {bits[i], 0, 0, 0};
+    float attr[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    if (use_constant) {
+      Pushbuffer::Begin();
+      Pushbuffer::Push(NV097_SET_TRANSFORM_CONSTANT_LOAD, 190);
+      Pushbuffer::PushN(NV097_SET_TRANSFORM_CONSTANT, 4,
+                        reinterpret_cast<const DWORD*>(words));
+      Pushbuffer::End();
+    } else {
+      memcpy(&attr[0], &bits[i], sizeof(attr[0]));
+    }
+
+    state.Begin(NV2AState::PRIMITIVE_QUADS);
+    for (uint32_t corner = 0; corner < 4; ++corner) {
+      const float x = left + ((corner == 1 || corner == 2) ? size : 0.0f);
+      const float y = top + ((corner >= 2) ? size : 0.0f);
+      state.SetTexCoord0(attr[0], attr[1], attr[2], attr[3]);
+      state.SetVertex(x, y, 0.1f);
+    }
+    state.End();
+  }
+
+  NV2AState::PBKitBusyWait();
+  *pgraph_intr = VIDEOREG(NV_PGRAPH_INTR);
+  ReadProbes(count, out_rgb);
+
+  state.SetVertexShaderProgram(nullptr);
+  return true;
+}
+
+bool VshRunProbes(ProbeShader shader, const float* a0_values, size_t count,
+                  uint32_t* out_rgb, uint32_t* pgraph_intr) {
+  if (!g_state || count > kMaxProbes) {
+    return false;
+  }
+
+  auto& state = *g_state;
+  SelectShader(state, shader);
   state.PrepareDraw(0xFF000000);
   UploadProbeConstants();
 
@@ -174,14 +283,7 @@ bool VshRunProbes(ProbeShader shader, const float* a0_values, size_t count,
   NV2AState::PBKitBusyWait();
   *pgraph_intr = VIDEOREG(NV_PGRAPH_INTR);
 
-  const auto* fb = reinterpret_cast<const uint8_t*>(pb_back_buffer());
-  const uint32_t pitch = pb_back_buffer_pitch();
-  for (size_t i = 0; i < count; ++i) {
-    const uint32_t x = (i % kProbesPerRow) * kProbeSize + kProbeSize / 2;
-    const uint32_t y = (i / kProbesPerRow) * kProbeSize + kProbeSize / 2;
-    const auto* pixel = reinterpret_cast<const uint32_t*>(fb + y * pitch) + x;
-    out_rgb[i] = *pixel & 0x00FFFFFF;
-  }
+  ReadProbes(count, out_rgb);
 
   state.SetVertexShaderProgram(nullptr);
   return true;
