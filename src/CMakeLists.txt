@@ -19,6 +19,10 @@ generate_nv2a_vshinc_files(
         vsh_tests/vsh_a0_relative.vsh
         vsh_tests/vsh_a0_relative_max_offset.vsh
         vsh_tests/vsh_log.vsh
+        vsh_tests/vsh_log_denormal_attr.vsh
+        vsh_tests/vsh_log_denormal_const.vsh
+        vsh_tests/vsh_mul_denormal_attr.vsh
+        vsh_tests/vsh_mul_denormal_const.vsh
 )
 
 # ---------------------------------------------------------------------------
@@ -282,6 +286,8 @@ create_test_xiso(
         vsh_tests/test_vsh_a0_offset_beyond_end.h
         vsh_tests/test_vsh_log_negative_exponent.cpp
         vsh_tests/test_vsh_log_negative_exponent.h
+        vsh_tests/test_vsh_log_denormal.cpp
+        vsh_tests/test_vsh_log_denormal.h
 )
 
 # xemu_guest_info

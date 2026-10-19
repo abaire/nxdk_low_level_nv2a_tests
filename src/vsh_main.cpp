@@ -7,6 +7,7 @@
 #include "vsh_tests/test_vsh_a0_before_start.h"
 #include "vsh_tests/test_vsh_a0_beyond_end.h"
 #include "vsh_tests/test_vsh_a0_offset_beyond_end.h"
+#include "vsh_tests/test_vsh_log_denormal.h"
 #include "vsh_tests/test_vsh_log_negative_exponent.h"
 
 static const char* kDefaultLogPath =
@@ -17,6 +18,7 @@ static constexpr TestCase kTests[] = {
     TestCase::From<TestVshA0BeyondEnd>(),
     TestCase::From<TestVshA0OffsetBeyondEnd>(),
     TestCase::From<TestVshLogNegativeExponent>(),
+    TestCase::From<TestVshLogDenormal>(),
 };
 
 int main() {
