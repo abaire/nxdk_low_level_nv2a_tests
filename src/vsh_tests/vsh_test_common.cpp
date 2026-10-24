@@ -5,6 +5,8 @@
 
 #include <cmath>
 #include <cstring>
+#include <functional>
+#include <iterator>
 #include <memory>
 
 #include "nv2astate.h"
@@ -39,7 +41,40 @@ static const uint32_t kMulDenormalAttrVsh[] = {
 static const uint32_t kMulDenormalConstVsh[] = {
 #include "vsh_mul_denormal_const.vshinc"
 };
+static const uint32_t kComputeRoundMulVsh[] = {
+#include "vsh_compute_round_mul.vshinc"
+};
+static const uint32_t kComputeRoundAddVsh[] = {
+#include "vsh_compute_round_add.vshinc"
+};
+static const uint32_t kComputeRoundDstVsh[] = {
+#include "vsh_compute_round_dst.vshinc"
+};
+static const uint32_t kComputeRoundMadVsh[] = {
+#include "vsh_compute_round_mad.vshinc"
+};
+static const uint32_t kComputeRoundDotVsh[] = {
+#include "vsh_compute_round_dot.vshinc"
+};
+static const uint32_t kComputeRugbyProjectionVsh[] = {
+#include "vsh_compute_rugby_projection.vshinc"
+};
 // clang-format on
+
+// Indexed by ComputeShader.
+struct ComputeShaderSource {
+  const uint32_t* code;
+  uint32_t size;
+};
+
+static const ComputeShaderSource kComputeShaders[] = {
+    {kComputeRoundMulVsh, sizeof(kComputeRoundMulVsh)},
+    {kComputeRoundAddVsh, sizeof(kComputeRoundAddVsh)},
+    {kComputeRoundDstVsh, sizeof(kComputeRoundDstVsh)},
+    {kComputeRoundMadVsh, sizeof(kComputeRoundMadVsh)},
+    {kComputeRoundDotVsh, sizeof(kComputeRoundDotVsh)},
+    {kComputeRugbyProjectionVsh, sizeof(kComputeRugbyProjectionVsh)},
+};
 
 static constexpr uint32_t kMaxProbes = 64;
 static constexpr uint32_t kProbeSize = 16;
@@ -47,6 +82,11 @@ static constexpr uint32_t kProbesPerRow = kFramebufferWidth / kProbeSize;
 static constexpr uint32_t kMaxTextureSize = 64;
 static constexpr uint32_t kMaxTextureDepth = 1;
 static constexpr uint32_t kConstantsPerPush = 4;
+static constexpr uint32_t kMaxComputeOutputs = 5;
+static constexpr uint32_t kComputeQuadVertices = 4;
+static constexpr uint32_t kMaxArrayStride = 16;
+static constexpr uint32_t kVertexAttributeCount = 16;
+static constexpr uint32_t kVshConstantsRdiBase = 0x170000;
 
 static std::unique_ptr<NV2AState> g_state;
 static std::shared_ptr<VertexShaderProgram> g_offset0_shader;
@@ -56,6 +96,10 @@ static std::shared_ptr<VertexShaderProgram> g_log_denormal_attr_shader;
 static std::shared_ptr<VertexShaderProgram> g_log_denormal_const_shader;
 static std::shared_ptr<VertexShaderProgram> g_mul_denormal_attr_shader;
 static std::shared_ptr<VertexShaderProgram> g_mul_denormal_const_shader;
+static std::shared_ptr<VertexShaderProgram>
+    g_compute_shaders[std::size(kComputeShaders)];
+static float* g_array_positions;
+static uint8_t* g_array_v1;
 
 static void SetupRenderState(NV2AState& state) {
   state.SetSurfaceFormat(NV2AState::SCF_A8R8G8B8, NV2AState::SZF_Z16,
@@ -153,6 +197,27 @@ bool VshInit() {
       kMulDenormalAttrVsh, sizeof(kMulDenormalAttrVsh));
   g_mul_denormal_const_shader = std::make_shared<VertexShaderProgram>(
       kMulDenormalConstVsh, sizeof(kMulDenormalConstVsh));
+  for (size_t i = 0; i < std::size(kComputeShaders); ++i) {
+    g_compute_shaders[i] = std::make_shared<VertexShaderProgram>(
+        kComputeShaders[i].code, kComputeShaders[i].size);
+  }
+
+  g_array_positions = static_cast<float*>(MmAllocateContiguousMemoryEx(
+      kComputeQuadVertices * 4 * sizeof(float), 0, MAXRAM, 0,
+      PAGE_WRITECOMBINE | PAGE_READWRITE));
+  g_array_v1 = static_cast<uint8_t*>(MmAllocateContiguousMemoryEx(
+      kComputeQuadVertices * kMaxArrayStride, 0, MAXRAM, 0,
+      PAGE_WRITECOMBINE | PAGE_READWRITE));
+  if (!g_array_positions || !g_array_v1) {
+    return false;
+  }
+  static constexpr float kArrayPositions[kComputeQuadVertices][4] = {
+      {0.0f, 0.0f, 1.0f, 1.0f},
+      {10.0f, 0.0f, 1.0f, 1.0f},
+      {10.0f, 10.0f, 1.0f, 1.0f},
+      {0.0f, 10.0f, 1.0f, 1.0f},
+  };
+  memcpy(g_array_positions, kArrayPositions, sizeof(kArrayPositions));
 
   NV2AState::PBKitBusyWait();
   return true;
@@ -358,4 +423,200 @@ bool VshReportA0Probes(const float* a0_values, size_t count,
   }
 
   return pass;
+}
+
+uint32_t FloatBits(float value) {
+  uint32_t bits;
+  memcpy(&bits, &value, sizeof(bits));
+  return bits;
+}
+
+float BitsFloat(uint32_t bits) {
+  float value;
+  memcpy(&value, &bits, sizeof(value));
+  return value;
+}
+
+VshConstant MakeConstant(uint32_t index, float x, float y, float z, float w) {
+  return {index, {FloatBits(x), FloatBits(y), FloatBits(z), FloatBits(w)}};
+}
+
+static void LoadConstant(uint32_t index, const uint32_t bits[4]) {
+  Pushbuffer::Begin();
+  Pushbuffer::Push(NV097_SET_TRANSFORM_CONSTANT_LOAD, index);
+  Pushbuffer::PushN(NV097_SET_TRANSFORM_CONSTANT, 4,
+                    reinterpret_cast<const DWORD*>(bits));
+  Pushbuffer::End();
+}
+
+// RDI returns the components of a constant in w, z, y, x order.
+static void ReadConstant(uint32_t index, uint32_t out[4]) {
+  VIDEOREG(NV_PGRAPH_RDI_INDEX) = kVshConstantsRdiBase + index * 16;
+  for (uint32_t component = 0; component < 4; ++component) {
+    out[3 - component] = VIDEOREG(NV_PGRAPH_RDI_DATA);
+  }
+}
+
+static bool RunCompute(ComputeShader shader, const VshConstant* inputs,
+                       size_t input_count, uint32_t first_output,
+                       size_t output_count, uint32_t (*outputs)[4],
+                       const std::function<void(NV2AState&)>& draw) {
+  if (!g_state || output_count > kMaxComputeOutputs ||
+      first_output + output_count > kVshConstantCount) {
+    return false;
+  }
+
+  auto& state = *g_state;
+  state.SetVertexShaderProgram(g_compute_shaders[static_cast<size_t>(shader)]);
+  Pushbuffer::Begin();
+  Pushbuffer::Push(NV097_SET_TRANSFORM_PROGRAM_CXT_WRITE_EN, 1);
+  Pushbuffer::End();
+  state.PrepareDraw(0xFF000000);
+
+  for (size_t i = 0; i < input_count; ++i) {
+    LoadConstant(inputs[i].index, inputs[i].bits);
+  }
+  const uint32_t sentinel[4] = {kVshComputeSentinel, kVshComputeSentinel,
+                                kVshComputeSentinel, kVshComputeSentinel};
+  for (size_t i = 0; i < output_count; ++i) {
+    LoadConstant(first_output + i, sentinel);
+  }
+
+  draw(state);
+
+  Pushbuffer::Begin();
+  Pushbuffer::Push(NV097_NO_OPERATION, 0);
+  Pushbuffer::Push(NV097_WAIT_FOR_IDLE, 0);
+  Pushbuffer::End();
+  NV2AState::PBKitBusyWait();
+  pb_wait_until_gr_not_busy();
+
+  for (size_t i = 0; i < output_count; ++i) {
+    ReadConstant(first_output + i, outputs[i]);
+  }
+
+  state.SetVertexShaderProgram(nullptr);
+  return true;
+}
+
+bool VshCompute(ComputeShader shader, const VshConstant* inputs,
+                size_t input_count, uint32_t first_output, size_t output_count,
+                uint32_t (*outputs)[4]) {
+  return RunCompute(shader, inputs, input_count, first_output, output_count,
+                    outputs, [](NV2AState& state) {
+                      const auto size = static_cast<float>(kProbeSize);
+                      state.Begin(NV2AState::PRIMITIVE_QUADS);
+                      state.SetVertex(0.0f, 0.0f, 0.1f);
+                      state.SetVertex(size, 0.0f, 0.1f);
+                      state.SetVertex(size, size, 0.1f);
+                      state.SetVertex(0.0f, size, 0.1f);
+                      state.End();
+                    });
+}
+
+bool VshComputeArray(ComputeShader shader, const VshConstant* inputs,
+                     size_t input_count, const ArrayAttribute& v1,
+                     uint32_t first_output, size_t output_count,
+                     uint32_t (*outputs)[4]) {
+  if (v1.stride > kMaxArrayStride) {
+    return false;
+  }
+
+  for (uint32_t i = 0; i < kComputeQuadVertices; ++i) {
+    memcpy(g_array_v1 + i * v1.stride, v1.data, v1.stride);
+  }
+
+  return RunCompute(
+      shader, inputs, input_count, first_output, output_count, outputs,
+      [&v1](NV2AState&) {
+        const uint32_t disabled =
+            SET_MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE,
+                     NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
+        Pushbuffer::Begin();
+        Pushbuffer::Push(NV097_BREAK_VERTEX_BUFFER_CACHE, 0);
+        for (uint32_t i = 0; i < kVertexAttributeCount; ++i) {
+          Pushbuffer::Push(NV097_SET_VERTEX_DATA_ARRAY_FORMAT + i * 4,
+                           disabled);
+        }
+        Pushbuffer::Push(
+            NV097_SET_VERTEX_DATA_ARRAY_FORMAT,
+            SET_MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE,
+                     NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F) |
+                SET_MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE, 4) |
+                SET_MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE,
+                         4 * sizeof(float)));
+        Pushbuffer::Push(NV097_SET_VERTEX_DATA_ARRAY_OFFSET,
+                         VRAM_ADDR(g_array_positions));
+        Pushbuffer::Push(
+            NV097_SET_VERTEX_DATA_ARRAY_FORMAT + 4,
+            SET_MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE, v1.type) |
+                SET_MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE, v1.size) |
+                SET_MASK(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE, v1.stride));
+        Pushbuffer::Push(NV097_SET_VERTEX_DATA_ARRAY_OFFSET + 4,
+                         VRAM_ADDR(g_array_v1));
+        Pushbuffer::Push(NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_QUADS);
+        Pushbuffer::Push(
+            NV097_DRAW_ARRAYS,
+            SET_MASK(NV097_DRAW_ARRAYS_COUNT, kComputeQuadVertices - 1) |
+                SET_MASK(NV097_DRAW_ARRAYS_START_INDEX, 0));
+        Pushbuffer::Push(NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
+        Pushbuffer::Push(NV097_SET_VERTEX_DATA_ARRAY_FORMAT, disabled);
+        Pushbuffer::Push(NV097_SET_VERTEX_DATA_ARRAY_FORMAT + 4, disabled);
+        Pushbuffer::End();
+      });
+}
+
+static void DescribeExpected(const ExpectedComponent& e, char* buf,
+                             size_t size) {
+  if (e.checked) {
+    snprintf(buf, size, "0x%08lX", static_cast<unsigned long>(e.bits));
+  } else {
+    snprintf(buf, size, "*");
+  }
+}
+
+bool VshCheckVector(const char* label, const uint32_t actual[4],
+                    const ExpectedComponent expected[4]) {
+  static constexpr const char* kComponents[] = {"x", "y", "z", "w"};
+  uint32_t mismatch_mask = 0;
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (expected[i].checked && actual[i] != expected[i].bits) {
+      mismatch_mask |= 1 << i;
+    }
+  }
+
+  char expected_desc[4][12];
+  for (uint32_t i = 0; i < 4; ++i) {
+    DescribeExpected(expected[i], expected_desc[i], sizeof(expected_desc[i]));
+  }
+
+  LogFields fields = TestFields("label", label);
+  for (uint32_t i = 0; i < 4; ++i) {
+    fields.Add(kComponents[i], Hex32(actual[i]));
+  }
+  for (uint32_t i = 0; i < 4; ++i) {
+    char key[16];
+    snprintf(key, sizeof(key), "expected_%s", kComponents[i]);
+    fields.Add(key, expected_desc[i]);
+  }
+  fields.Add("mismatch_mask", mismatch_mask);
+
+  if (!mismatch_mask) {
+    TEST_PASS_EX(fields, "%s: (%g, %g, %g, %g)", label, BitsFloat(actual[0]),
+                 BitsFloat(actual[1]), BitsFloat(actual[2]),
+                 BitsFloat(actual[3]));
+    return true;
+  }
+
+  TEST_FAIL_EX(fields,
+               "%s: 0x%08lX 0x%08lX 0x%08lX 0x%08lX (%g, %g, %g, %g), expected "
+               "%s %s %s %s",
+               label, static_cast<unsigned long>(actual[0]),
+               static_cast<unsigned long>(actual[1]),
+               static_cast<unsigned long>(actual[2]),
+               static_cast<unsigned long>(actual[3]), BitsFloat(actual[0]),
+               BitsFloat(actual[1]), BitsFloat(actual[2]), BitsFloat(actual[3]),
+               expected_desc[0], expected_desc[1], expected_desc[2],
+               expected_desc[3]);
+  return false;
 }

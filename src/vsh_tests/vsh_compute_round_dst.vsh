@@ -1,0 +1,10 @@
+; c[188 + i] = DST(c[96 + 2i], c[97 + 2i]) for i in [0, 3]
+mov r0, c[96]
+dst c[188], r0, c[97]
+mov r0, c[98]
+dst c[189], r0, c[99]
+mov r0, c[100]
+dst c[190], r0, c[101]
+mov r0, c[102]
+dst c[191], r0, c[103]
+mov oPos, v0
