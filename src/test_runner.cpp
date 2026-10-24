@@ -162,6 +162,8 @@ void TestRunner::RunAllTests() {
     TestLog::Print("  %2d %-32s : %s", static_cast<int>(i + 1), tests_[i].name,
                    results_[i] ? "PASS" : "FAIL");
   }
+  TestLog::Print("%d/%d passed", static_cast<int>(passed),
+                 static_cast<int>(num_tests_));
   TestLog::Print("See %s\n", log_path_.c_str());
 }
 

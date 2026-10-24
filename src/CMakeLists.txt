@@ -23,6 +23,12 @@ generate_nv2a_vshinc_files(
         vsh_tests/vsh_log_denormal_const.vsh
         vsh_tests/vsh_mul_denormal_attr.vsh
         vsh_tests/vsh_mul_denormal_const.vsh
+        vsh_tests/vsh_compute_round_add.vsh
+        vsh_tests/vsh_compute_round_dot.vsh
+        vsh_tests/vsh_compute_round_dst.vsh
+        vsh_tests/vsh_compute_round_mad.vsh
+        vsh_tests/vsh_compute_round_mul.vsh
+        vsh_tests/vsh_compute_rugby_projection.vsh
 )
 
 # ---------------------------------------------------------------------------
@@ -288,6 +294,20 @@ create_test_xiso(
         vsh_tests/test_vsh_log_negative_exponent.h
         vsh_tests/test_vsh_log_denormal.cpp
         vsh_tests/test_vsh_log_denormal.h
+        vsh_tests/vsh_rounding_common.cpp
+        vsh_tests/vsh_rounding_common.h
+        vsh_tests/test_vsh_rounding_add.cpp
+        vsh_tests/test_vsh_rounding_add.h
+        vsh_tests/test_vsh_rounding_dot.cpp
+        vsh_tests/test_vsh_rounding_dot.h
+        vsh_tests/test_vsh_rounding_dst.cpp
+        vsh_tests/test_vsh_rounding_dst.h
+        vsh_tests/test_vsh_rounding_mad.cpp
+        vsh_tests/test_vsh_rounding_mad.h
+        vsh_tests/test_vsh_rounding_mul.cpp
+        vsh_tests/test_vsh_rounding_mul.h
+        vsh_tests/test_vsh_rugby_projection.cpp
+        vsh_tests/test_vsh_rugby_projection.h
 )
 
 # xemu_guest_info
