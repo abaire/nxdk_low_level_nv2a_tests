@@ -29,6 +29,21 @@ generate_nv2a_vshinc_files(
         vsh_tests/vsh_compute_round_mad.vsh
         vsh_tests/vsh_compute_round_mul.vsh
         vsh_tests/vsh_compute_rugby_projection.vsh
+        vsh_tests/vsh_compute_exc_min.vsh
+        vsh_tests/vsh_compute_exc_max.vsh
+        vsh_tests/vsh_compute_exc_slt.vsh
+        vsh_tests/vsh_compute_exc_sge.vsh
+        vsh_tests/vsh_compute_exc_rcp.vsh
+        vsh_tests/vsh_compute_exc_rcc.vsh
+        vsh_tests/vsh_compute_exc_rsq.vsh
+        vsh_tests/vsh_compute_exc_expp.vsh
+        vsh_tests/vsh_compute_exc_logp.vsh
+        vsh_tests/vsh_compute_exc_lit.vsh
+        vsh_tests/vsh_compute_exc_mov.vsh
+        vsh_tests/vsh_compute_exc_paths_attr.vsh
+        vsh_tests/vsh_compute_exc_paths_const.vsh
+        vsh_tests/vsh_compute_exc_fog_chain_const.vsh
+        vsh_tests/vsh_compute_exc_fog_chain_attr.vsh
 )
 
 # ---------------------------------------------------------------------------
@@ -308,6 +323,14 @@ create_test_xiso(
         vsh_tests/test_vsh_rounding_mul.h
         vsh_tests/test_vsh_rugby_projection.cpp
         vsh_tests/test_vsh_rugby_projection.h
+        vsh_tests/vsh_exceptional_common.cpp
+        vsh_tests/vsh_exceptional_common.h
+        vsh_tests/test_vsh_exceptional_mac.cpp
+        vsh_tests/test_vsh_exceptional_mac.h
+        vsh_tests/test_vsh_exceptional_ilu.cpp
+        vsh_tests/test_vsh_exceptional_ilu.h
+        vsh_tests/test_vsh_exceptional_paths.cpp
+        vsh_tests/test_vsh_exceptional_paths.h
 )
 
 # xemu_guest_info

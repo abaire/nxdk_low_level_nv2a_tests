@@ -59,6 +59,51 @@ static const uint32_t kComputeRoundDotVsh[] = {
 static const uint32_t kComputeRugbyProjectionVsh[] = {
 #include "vsh_compute_rugby_projection.vshinc"
 };
+static const uint32_t kComputeExcMinVsh[] = {
+#include "vsh_compute_exc_min.vshinc"
+};
+static const uint32_t kComputeExcMaxVsh[] = {
+#include "vsh_compute_exc_max.vshinc"
+};
+static const uint32_t kComputeExcSltVsh[] = {
+#include "vsh_compute_exc_slt.vshinc"
+};
+static const uint32_t kComputeExcSgeVsh[] = {
+#include "vsh_compute_exc_sge.vshinc"
+};
+static const uint32_t kComputeExcRcpVsh[] = {
+#include "vsh_compute_exc_rcp.vshinc"
+};
+static const uint32_t kComputeExcRccVsh[] = {
+#include "vsh_compute_exc_rcc.vshinc"
+};
+static const uint32_t kComputeExcRsqVsh[] = {
+#include "vsh_compute_exc_rsq.vshinc"
+};
+static const uint32_t kComputeExcExppVsh[] = {
+#include "vsh_compute_exc_expp.vshinc"
+};
+static const uint32_t kComputeExcLogpVsh[] = {
+#include "vsh_compute_exc_logp.vshinc"
+};
+static const uint32_t kComputeExcLitVsh[] = {
+#include "vsh_compute_exc_lit.vshinc"
+};
+static const uint32_t kComputeExcMovVsh[] = {
+#include "vsh_compute_exc_mov.vshinc"
+};
+static const uint32_t kComputeExcPathsAttrVsh[] = {
+#include "vsh_compute_exc_paths_attr.vshinc"
+};
+static const uint32_t kComputeExcPathsConstVsh[] = {
+#include "vsh_compute_exc_paths_const.vshinc"
+};
+static const uint32_t kComputeExcFogChainConstVsh[] = {
+#include "vsh_compute_exc_fog_chain_const.vshinc"
+};
+static const uint32_t kComputeExcFogChainAttrVsh[] = {
+#include "vsh_compute_exc_fog_chain_attr.vshinc"
+};
 // clang-format on
 
 // Indexed by ComputeShader.
@@ -74,6 +119,21 @@ static const ComputeShaderSource kComputeShaders[] = {
     {kComputeRoundMadVsh, sizeof(kComputeRoundMadVsh)},
     {kComputeRoundDotVsh, sizeof(kComputeRoundDotVsh)},
     {kComputeRugbyProjectionVsh, sizeof(kComputeRugbyProjectionVsh)},
+    {kComputeExcMinVsh, sizeof(kComputeExcMinVsh)},
+    {kComputeExcMaxVsh, sizeof(kComputeExcMaxVsh)},
+    {kComputeExcSltVsh, sizeof(kComputeExcSltVsh)},
+    {kComputeExcSgeVsh, sizeof(kComputeExcSgeVsh)},
+    {kComputeExcRcpVsh, sizeof(kComputeExcRcpVsh)},
+    {kComputeExcRccVsh, sizeof(kComputeExcRccVsh)},
+    {kComputeExcRsqVsh, sizeof(kComputeExcRsqVsh)},
+    {kComputeExcExppVsh, sizeof(kComputeExcExppVsh)},
+    {kComputeExcLogpVsh, sizeof(kComputeExcLogpVsh)},
+    {kComputeExcLitVsh, sizeof(kComputeExcLitVsh)},
+    {kComputeExcMovVsh, sizeof(kComputeExcMovVsh)},
+    {kComputeExcPathsAttrVsh, sizeof(kComputeExcPathsAttrVsh)},
+    {kComputeExcPathsConstVsh, sizeof(kComputeExcPathsConstVsh)},
+    {kComputeExcFogChainConstVsh, sizeof(kComputeExcFogChainConstVsh)},
+    {kComputeExcFogChainAttrVsh, sizeof(kComputeExcFogChainAttrVsh)},
 };
 
 static constexpr uint32_t kMaxProbes = 64;
@@ -82,7 +142,7 @@ static constexpr uint32_t kProbesPerRow = kFramebufferWidth / kProbeSize;
 static constexpr uint32_t kMaxTextureSize = 64;
 static constexpr uint32_t kMaxTextureDepth = 1;
 static constexpr uint32_t kConstantsPerPush = 4;
-static constexpr uint32_t kMaxComputeOutputs = 5;
+static constexpr uint32_t kMaxComputeOutputs = 8;
 static constexpr uint32_t kComputeQuadVertices = 4;
 static constexpr uint32_t kMaxArrayStride = 16;
 static constexpr uint32_t kVertexAttributeCount = 16;

@@ -7,6 +7,9 @@
 #include "vsh_tests/test_vsh_a0_before_start.h"
 #include "vsh_tests/test_vsh_a0_beyond_end.h"
 #include "vsh_tests/test_vsh_a0_offset_beyond_end.h"
+#include "vsh_tests/test_vsh_exceptional_ilu.h"
+#include "vsh_tests/test_vsh_exceptional_mac.h"
+#include "vsh_tests/test_vsh_exceptional_paths.h"
 #include "vsh_tests/test_vsh_log_denormal.h"
 #include "vsh_tests/test_vsh_log_negative_exponent.h"
 #include "vsh_tests/test_vsh_rounding_add.h"
@@ -32,6 +35,25 @@ static constexpr TestCase kTests[] = {
     TestCase::From<TestVshRoundingDot>(),
     TestCase::From<TestVshRoundingDotAccumulation>(),
     TestCase::From<TestVshRugbyProjection>(),
+    TestCase::From<TestVshExceptionalMov>(),
+    TestCase::From<TestVshExceptionalMul>(),
+    TestCase::From<TestVshExceptionalAdd>(),
+    TestCase::From<TestVshExceptionalMad>(),
+    TestCase::From<TestVshExceptionalDot>(),
+    TestCase::From<TestVshExceptionalMin>(),
+    TestCase::From<TestVshExceptionalMax>(),
+    TestCase::From<TestVshExceptionalSlt>(),
+    TestCase::From<TestVshExceptionalSge>(),
+    TestCase::From<TestVshExceptionalDst>(),
+    TestCase::From<TestVshExceptionalRcp>(),
+    TestCase::From<TestVshExceptionalRcc>(),
+    TestCase::From<TestVshExceptionalRsq>(),
+    TestCase::From<TestVshExceptionalExpp>(),
+    TestCase::From<TestVshExceptionalLogp>(),
+    TestCase::From<TestVshExceptionalLit>(),
+    TestCase::From<TestVshExceptionalArl>(),
+    TestCase::From<TestVshExceptionalAttribute>(),
+    TestCase::From<TestVshExceptionalFogChain>(),
 };
 
 int main() {

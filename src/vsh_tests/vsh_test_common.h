@@ -87,6 +87,39 @@ enum class ComputeShader {
   //! Rugby 2005 projection and screen-space epilogue. See
   //! vsh_compute_rugby_projection.vsh.
   kRugbyProjection,
+  //! c[188 + i] = MIN(c[96 + 2i], c[97 + 2i]) for i in [0, 3]
+  kExcMin,
+  //! c[188 + i] = MAX(c[96 + 2i], c[97 + 2i]) for i in [0, 3]
+  kExcMax,
+  //! c[188 + i] = SLT(c[96 + 2i], c[97 + 2i]) for i in [0, 3]
+  kExcSlt,
+  //! c[188 + i] = SGE(c[96 + 2i], c[97 + 2i]) for i in [0, 3]
+  kExcSge,
+  //! c[188 + i] = RCP(component i of c[96]) for i in [0, 3]
+  kExcRcp,
+  //! c[188 + i] = RCC(component i of c[96]) for i in [0, 3]
+  kExcRcc,
+  //! c[188 + i] = RSQ(component i of c[96]) for i in [0, 3]
+  kExcRsq,
+  //! c[188 + i] = EXPP(component i of c[96]) for i in [0, 3]
+  kExcExpp,
+  //! c[188 + i] = LOGP(component i of c[96]) for i in [0, 3]
+  kExcLogp,
+  //! c[188 + i] = LIT(c[96 + i]) for i in [0, 3]
+  kExcLit,
+  //! MOV variants of c[96] and v1 into c[184, 191]. See
+  //! vsh_compute_exc_mov.vsh.
+  kExcMov,
+  //! MAC operations of A = v1 with B = c[96] into c[184, 191]. See
+  //! vsh_compute_exc_paths_attr.vsh.
+  kExcPathsAttr,
+  //! As kExcPathsAttr with A = c[98].
+  kExcPathsConst,
+  //! Fixed function fog distance model of P = c[96] into c[187, 191]. See
+  //! vsh_compute_exc_fog_chain_const.vsh.
+  kExcFogChainConst,
+  //! As kExcFogChainConst with P = v1.
+  kExcFogChainAttr,
 };
 
 //! A raw value loaded into a constant register before a compute draw.
@@ -111,7 +144,7 @@ struct ArrayAttribute {
 
 //! Loads `inputs`, fills c[first_output, first_output + output_count) with a
 //! sentinel, draws a quad with `shader`, and reads back the output registers
-//! into `outputs` (x, y, z, w order). At most 5 outputs may be requested.
+//! into `outputs` (x, y, z, w order). At most 8 outputs may be requested.
 bool VshCompute(ComputeShader shader, const VshConstant* inputs,
                 size_t input_count, uint32_t first_output, size_t output_count,
                 uint32_t (*outputs)[4]);

@@ -1,0 +1,10 @@
+; c[188 + i] = slt(c[96 + 2i], c[97 + 2i]) for i in [0, 3]
+mov r0, c[96]
+slt c[188], r0, c[97]
+mov r0, c[98]
+slt c[189], r0, c[99]
+mov r0, c[100]
+slt c[190], r0, c[101]
+mov r0, c[102]
+slt c[191], r0, c[103]
+mov oPos, v0
