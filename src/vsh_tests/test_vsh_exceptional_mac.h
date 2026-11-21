@@ -5,13 +5,7 @@
 // edges of the float32 range. Results are read back bit-exactly from constant
 // registers.
 //
-// Every expectation is the result observed on hardware ("hw"). Each result is
-// also logged with alternative models so a run on an emulator shows which one
-// it implements, e.g. "ieee" (IEEE 754 round to nearest, an invalid operation
-// producing the default NaN 0x7FC00000 and a NaN operand propagating quieted),
-// "canon_nan" (the canonical NaN 0x7FFFFFFF), "xor_sign" (a zero product
-// signed as the XOR of the operand signs) or "d3d" (the D3D select model for
-// MIN, MAX, SLT and SGE).
+// Every expectation is the result observed on hardware.
 //
 // Conventions established by other tests and relied on here:
 // - Products and sums are truncated toward zero (see TestVshRoundingMul and
@@ -38,7 +32,7 @@
 //!
 //! Validates that every variant produces, per component:
 //! 1. The input bits unaltered, including every NaN payload, -0 and
-//! denormals (not flushed: "flush" gives a zero of the same sign).
+//! denormals, which are not flushed.
 //! 2. The input with only its sign bit flipped when negated, including NaNs,
 //! zeros and denormals.
 //! 3. The swizzled components, unaltered.
@@ -55,11 +49,11 @@ struct TestVshExceptionalMov {
 //!
 //! Validates that MUL produces:
 //! 1. +0 for 0 * +-inf and +-inf * 0 in either operand order, whatever the
-//! signs ("ieee" gives NaN, "xor_sign" a signed zero).
+//! signs.
 //! 2. +0 for 0 * NaN and NaN * 0 for every NaN encoding and sign.
 //! 3. +0 for +-denormal * +inf, since the denormal is read as zero.
 //! 4. +0 for -0 * 1.5 and +0 * -1.5: a product with a zero operand is always
-//! +0 ("ieee" gives -0).
+//! +0.
 //! 5. The ordinary results for +-1.5 * +inf, inf * inf, FLT_MAX * 0 and
 //! 2^-126 * 1.5.
 //! 6. 0x7FFFFFFF for NaN * x for every NaN encoding.
@@ -79,7 +73,7 @@ struct TestVshExceptionalMul {
 //! 1. 0x7FFFFFFF for +inf + -inf in either order.
 //! 2. inf for inf + inf of the same sign and for inf + any finite value.
 //! 3. 0x7FFFFFFF for NaN + x for every NaN encoding.
-//! 4. +0 for every sum of zeros, including -0 + -0 ("ieee" gives -0).
+//! 4. +0 for every sum of zeros, including -0 + -0.
 //! 5. +-FLT_MAX for +-(FLT_MAX + FLT_MAX), the truncated result.
 //! 6. +0 for denormal + denormal, and 2^-126 for 2^-126 + -denormal: the
 //! denormals are read as zero.
@@ -102,7 +96,7 @@ struct TestVshExceptionalAdd {
 //! +inf * +inf + -inf, -inf * 1.5 + +inf) or receives a NaN addend.
 //! 5. c for denormal * +inf + c, since the denormal is read as zero.
 //! 6. +0 for FLT_MAX * 2 - FLT_MAX: the product is truncated to FLT_MAX before
-//! the addition ("fused" gives FLT_MAX, "ieee" inf).
+//! the addition.
 //! 7. FLT_MAX for FLT_MAX * 1 + FLT_MAX.
 struct TestVshExceptionalMad {
   static constexpr const char* Name() { return "VSH Exceptional MAD"; }
@@ -137,8 +131,7 @@ struct TestVshExceptionalDot {
 //! MIN, MAX, SLT and SGE compare the raw bits of their operands as
 //! sign-magnitude integers. This is a total order: -NaN < -inf < negative
 //! values < -0 < +0 < positive values < +inf < +NaN, with denormals ordered by
-//! value rather than read as zero. The "d3d" alternative is
-//! (a < b) ? a : b with an IEEE 754 ordered comparison.
+//! value rather than read as zero.
 //!
 //! Validates that:
 //! 1. MIN(a, NaN) and MIN(NaN, a) return a for a positive NaN and the NaN
@@ -176,7 +169,7 @@ struct TestVshExceptionalMax {
 //!
 //! Validates that:
 //! 1. SLT(x, +NaN) = 1 and SLT(+NaN, x) = 0 for non-NaN x, and
-//! SLT(1.5, -NaN) = 0 ("d3d" gives 0 whenever an operand is NaN).
+//! SLT(1.5, -NaN) = 0.
 //! 2. SLT orders -inf < FLT_MAX < +inf and returns 0 for equal infinities.
 //! 3. SLT(-0, +0) = 1 and SLT(+0, -0) = 0.
 //! 4. A denormal is compared by value: SLT(-denormal, +0) = 1 and
@@ -194,8 +187,7 @@ struct TestVshExceptionalSlt {
 //!
 //! Validates that:
 //! 1. SGE(+NaN, x) = 1 and SGE(x, +NaN) = 0 for non-NaN x, SGE(NaN, NaN) = 1
-//! for identical bits, and SGE(+inf, -NaN) = 1 ("d3d" gives 0 whenever an
-//! operand is NaN).
+//! for identical bits, and SGE(+inf, -NaN) = 1.
 //! 2. SGE orders -inf < FLT_MAX < +inf and returns 1 for equal infinities.
 //! 3. SGE(-0, +0) = 0 and SGE(+0, -0) = 1.
 //! 4. A denormal is compared by value: SGE(+0, denormal) = 0 and
