@@ -3,8 +3,7 @@
 
 // Tests of zero meeting infinity or NaN when an operand is read from a vertex
 // attribute, and of the fixed function fog distance model built from shader
-// operations. Expectations are hardware results, logged with alternative
-// models as described in test_vsh_exceptional_mac.h.
+// operations. Expectations are hardware results.
 
 //! Validates that MAC operations treat an operand read from a vertex attribute
 //! the same way as one read from a constant.
@@ -54,14 +53,13 @@ struct TestVshExceptionalAttribute {
 //! distance d is inf * 0 = 0; for xyz = 0, p = 0, d2 = 0 and d = 0 * inf = 0.
 //!
 //! Validates that, on both paths:
-//! 1. rcp(P.w) = +inf for P.w = +0 and -inf for P.w = -0 ("pos_inf" gives +inf
-//! for both).
+//! 1. rcp(P.w) = +inf for P.w = +0 and -inf for P.w = -0.
 //! 2. p.xyz = +-inf for nonzero xyz with the sign of the product, p is +0 for
 //! zero components (including -0 * -inf), and p.w = P.w * inf is +0.
 //! 3. d2 = inf whenever any component of xyz is nonzero, and d2 = +0 for
 //! xyz = 0.
 //! 4. rsq(d2) = +0 for d2 = inf and +inf for d2 = 0.
-//! 5. d = +0 in every w = 0 case ("ieee" gives NaN).
+//! 5. d = +0 in every w = 0 case.
 //! 6. The reference P = (1, 2, 3, 1) gives rcp = 1, p = P, d2 = 14,
 //! rsq(14) = 0x3E88D676 and d = 0x406F774E.
 struct TestVshExceptionalFogChain {

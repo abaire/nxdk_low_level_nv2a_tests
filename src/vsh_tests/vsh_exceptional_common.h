@@ -21,8 +21,6 @@ constexpr uint32_t kQNaN = 0x7FC00000;
 constexpr uint32_t kNegNaN = 0xFFC00000;
 //! A signaling NaN with a non-canonical payload.
 constexpr uint32_t kPayloadNaN = 0x7FA5A5A5;
-//! kPayloadNaN as quieted by an IEEE 754 operation.
-constexpr uint32_t kPayloadNaNQuiet = 0x7FE5A5A5;
 constexpr uint32_t kFltMax = 0x7F7FFFFF;
 constexpr uint32_t kNegFltMax = 0xFF7FFFFF;
 //! 2^-126
@@ -48,23 +46,6 @@ constexpr uint32_t kNegHalf = 0xBF000000;
 constexpr RoundingExpectation Expect(uint32_t hw) {
   return {true, hw, {{"hw", hw}}};
 }
-
-//! A checked hardware result "hw" along with alternative models that are
-//! logged so a run on another implementation (e.g. an emulator) shows which
-//! model its result matches.
-constexpr RoundingExpectation Expect(uint32_t hw, const char* alt_name,
-                                     uint32_t alt) {
-  return {true, hw, {{"hw", hw}, {alt_name, alt}}};
-}
-
-constexpr RoundingExpectation Expect(uint32_t hw, const char* alt_name,
-                                     uint32_t alt, const char* alt2_name,
-                                     uint32_t alt2) {
-  return {true, hw, {{"hw", hw}, {alt_name, alt}, {alt2_name, alt2}}};
-}
-
-//! A result that is logged but not checked.
-constexpr RoundingExpectation Unchecked() { return {false, 0, {}}; }
 
 //! Reports each component of `actual` via VshReportRounding, labeled
 //! "<label>.<component>". `context` is logged with "case" set to `label` and
