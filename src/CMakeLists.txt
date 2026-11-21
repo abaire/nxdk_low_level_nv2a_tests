@@ -6,6 +6,23 @@ find_package(Threads REQUIRED)
 
 configure_file(configure.h.in configure.h)
 
+find_package(Git QUIET)
+set(_GIT_REVISION_HEADER "${CMAKE_CURRENT_BINARY_DIR}/git_revision.h")
+add_custom_target(
+        git_revision
+        ALL
+        COMMAND
+        "${CMAKE_COMMAND}"
+        "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
+        "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+        "-DINPUT_FILE=${CMAKE_CURRENT_SOURCE_DIR}/git_revision.h.in"
+        "-DOUTPUT_FILE=${_GIT_REVISION_HEADER}"
+        -P "${CMAKE_SOURCE_DIR}/cmake/modules/GenerateGitRevision.cmake"
+        BYPRODUCTS "${_GIT_REVISION_HEADER}"
+        COMMENT "Recording git revision"
+        VERBATIM
+)
+
 # ---------------------------------------------------------------------------
 # Vertex Shaders
 # ---------------------------------------------------------------------------
@@ -172,6 +189,7 @@ target_include_directories(
         "${CMAKE_SOURCE_DIR}/third_party"
         "${CMAKE_CURRENT_BINARY_DIR}"
 )
+add_dependencies(test_util git_revision)
 target_link_libraries(
         test_util
         PUBLIC

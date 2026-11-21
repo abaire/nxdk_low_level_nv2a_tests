@@ -6,13 +6,18 @@
 
 bool VshReportVector(const char* op, const char* label,
                      const uint32_t actual[4],
-                     const RoundingExpectation expected[4]) {
-  static constexpr const char* kSuffix[] = {".x", ".y", ".z", ".w"};
+                     const RoundingExpectation expected[4],
+                     const VshRecordContext& context) {
+  static constexpr const char* kComponents[] = {"x", "y", "z", "w"};
   bool pass = true;
+  VshRecordContext component_context = context;
+  component_context.case_label = label;
   for (uint32_t i = 0; i < 4; ++i) {
-    const std::string component_label = std::string(label) + kSuffix[i];
-    pass &=
-        VshReportRounding(op, component_label.c_str(), actual[i], expected[i]);
+    const std::string component_label =
+        std::string(label) + "." + kComponents[i];
+    component_context.component = kComponents[i];
+    pass &= VshReportRounding(op, component_label.c_str(), actual[i],
+                              expected[i], &component_context);
   }
   return pass;
 }
@@ -46,8 +51,14 @@ bool VshRunTernaryCases(ComputeShader shader, const char* op,
 
     for (size_t i = 0; i < batch; ++i) {
       const auto& c = cases[first + i];
-      pass &=
-          VshReportRounding(op, c.label, outputs[i / 4][i % 4], c.expectation);
+      const VshRecordContext context = {
+          "mac",
+          nullptr,
+          nullptr,
+          nullptr,
+          {{"in_a", &c.a, 1}, {"in_b", &c.b, 1}, {"in_c", &c.c, 1}}};
+      pass &= VshReportRounding(op, c.label, outputs[i / 4][i % 4],
+                                c.expectation, &context);
     }
   }
   return pass;
@@ -80,9 +91,14 @@ bool VshRunExceptionalDotCases(const ExceptionalDotCase* cases, size_t count) {
 
     for (size_t i = 0; i < batch; ++i) {
       const auto& c = cases[first + i];
-      pass &= VshReportRounding("DP3", c.label, outputs[0][i], c.dp3);
-      pass &= VshReportRounding("DPH", c.label, outputs[1][i], c.dph);
-      pass &= VshReportRounding("DP4", c.label, outputs[2][i], c.dp4);
+      const VshRecordContext context = {"mac",
+                                        nullptr,
+                                        nullptr,
+                                        nullptr,
+                                        {{"in_a", c.a, 4}, {"in_b", c.b, 4}}};
+      pass &= VshReportRounding("DP3", c.label, outputs[0][i], c.dp3, &context);
+      pass &= VshReportRounding("DPH", c.label, outputs[1][i], c.dph, &context);
+      pass &= VshReportRounding("DP4", c.label, outputs[2][i], c.dp4, &context);
     }
   }
   return pass;
@@ -117,18 +133,23 @@ static bool RunIluCases(ComputeShader shader, const Case* cases, size_t count,
 
 bool VshRunScalarIluCases(ComputeShader shader, const char* op,
                           const ScalarIluCase* cases, size_t count) {
-  return RunIluCases(shader, cases, count,
-                     [op](const ScalarIluCase& c, const uint32_t* result) {
-                       return VshReportRounding(op, c.label, result[0],
-                                                c.expectation);
-                     });
+  return RunIluCases(
+      shader, cases, count,
+      [op](const ScalarIluCase& c, const uint32_t* result) {
+        const VshRecordContext context = {
+            "ilu", nullptr, nullptr, nullptr, {{"in_a", &c.input, 1}}};
+        return VshReportRounding(op, c.label, result[0], c.expectation,
+                                 &context);
+      });
 }
 
 bool VshRunVectorIluCases(ComputeShader shader, const char* op,
                           const VectorIluCase* cases, size_t count) {
-  return RunIluCases(shader, cases, count,
-                     [op](const VectorIluCase& c, const uint32_t* result) {
-                       return VshReportVector(op, c.label, result,
-                                              c.expectation);
-                     });
+  return RunIluCases(
+      shader, cases, count,
+      [op](const VectorIluCase& c, const uint32_t* result) {
+        const VshRecordContext context = {
+            "ilu", nullptr, nullptr, nullptr, {{"in_a", &c.input, 1}}};
+        return VshReportVector(op, c.label, result, c.expectation, context);
+      });
 }

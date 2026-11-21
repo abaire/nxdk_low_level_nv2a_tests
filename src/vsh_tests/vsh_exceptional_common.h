@@ -67,10 +67,12 @@ constexpr RoundingExpectation Expect(uint32_t hw, const char* alt_name,
 constexpr RoundingExpectation Unchecked() { return {false, 0, {}}; }
 
 //! Reports each component of `actual` via VshReportRounding, labeled
-//! "<label>.<component>".
+//! "<label>.<component>". `context` is logged with "case" set to `label` and
+//! "component" set to the component name.
 bool VshReportVector(const char* op, const char* label,
                      const uint32_t actual[4],
-                     const RoundingExpectation expected[4]);
+                     const RoundingExpectation expected[4],
+                     const VshRecordContext& context);
 
 //! A probe of MAD with the three operands of a single component.
 struct TernaryCase {
@@ -83,7 +85,7 @@ struct TernaryCase {
 
 //! Runs `cases` through a shader computing c[188 + i] = c[96 + 3i] *
 //! c[97 + 3i] + c[98 + 3i] (kRoundMad). Case k of each draw of 16 uses
-//! component k % 4 of vector k / 4.
+//! component k % 4 of vector k / 4. Results are logged in group "mac".
 bool VshRunTernaryCases(ComputeShader shader, const char* op,
                         const TernaryCase* cases, size_t count);
 
@@ -97,7 +99,8 @@ struct ExceptionalDotCase {
   RoundingExpectation dp4;
 };
 
-//! Runs `cases` through kRoundDot, 4 cases per draw.
+//! Runs `cases` through kRoundDot, 4 cases per draw. Results are logged in
+//! group "mac".
 bool VshRunExceptionalDotCases(const ExceptionalDotCase* cases, size_t count);
 
 //! A probe of an ILU operation on a single scalar input whose result is
@@ -109,7 +112,8 @@ struct ScalarIluCase {
 };
 
 //! Runs `cases` through a shader computing c[188 + i] = OP(component i of
-//! c[96]), checking the x component of each result. 4 cases per draw.
+//! c[96]), checking the x component of each result. 4 cases per draw. Results
+//! are logged in group "ilu".
 bool VshRunScalarIluCases(ComputeShader shader, const char* op,
                           const ScalarIluCase* cases, size_t count);
 

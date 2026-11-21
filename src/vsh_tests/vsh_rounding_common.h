@@ -41,11 +41,43 @@ struct RoundingExpectation {
   RoundingModel models[kMaxRoundingModels];
 };
 
+//! An input operand of a probe, referencing the bits held by a case table.
+struct VshOperand {
+  //! The log field name, e.g. "in_a", or nullptr for an unused entry.
+  const char* name;
+  const uint32_t* bits;
+  //! 1 for a scalar operand, 4 for a vec4.
+  uint32_t count;
+};
+
+//! Maximum number of operands described by a VshRecordContext.
+constexpr size_t kMaxRecordOperands = 3;
+
+//! Describes a probe well enough that a log consumer can reproduce it without
+//! the test sources. When passed to VshReportRounding, the event additionally
+//! gets the fields:
+//! - "group": `group`.
+//! - "record_op": `record_op`, or the reported op if nullptr.
+//! - "case": `case_label`, or the reported label if nullptr.
+//! - "component": `component`, omitted if nullptr.
+//! - One field per operand, "0x%08X" for a scalar and four comma separated
+//! "0x%08X" values for a vec4.
+//! - "models": every model other than "hw" as comma separated name=0x%08X.
+struct VshRecordContext {
+  const char* group = nullptr;
+  const char* record_op = nullptr;
+  const char* case_label = nullptr;
+  const char* component = nullptr;
+  VshOperand operands[kMaxRecordOperands] = {};
+};
+
 //! Logs `actual` along with every model in `expectation` and the names of the
-//! models it matches. Checked expectations log a pass or fail; unchecked ones
-//! log an info event. Returns false only if a checked expectation failed.
+//! models it matches, plus the fields described by `context` if it is not
+//! null. Checked expectations log a pass or fail; unchecked ones log an info
+//! event. Returns false only if a checked expectation failed.
 bool VshReportRounding(const char* op, const char* label, uint32_t actual,
-                       const RoundingExpectation& expectation);
+                       const RoundingExpectation& expectation,
+                       const VshRecordContext* context = nullptr);
 
 //! A probe of a two-operand MAC instruction.
 struct BinaryRoundingCase {
@@ -57,8 +89,11 @@ struct BinaryRoundingCase {
 
 //! Runs `cases` through a shader computing c[188 + i] = OP(c[96 + 2i],
 //! c[97 + 2i]) per component for i in [0, 3]. Case k of each draw of 16 uses
-//! component k % 4 of vector k / 4.
+//! component k % 4 of vector k / 4. If `group` is not null, each result is
+//! logged with a VshRecordContext in that group with scalar operands "in_a"
+//! and "in_b".
 bool VshRunBinaryRoundingCases(ComputeShader shader, const char* op,
-                               const BinaryRoundingCase* cases, size_t count);
+                               const BinaryRoundingCase* cases, size_t count,
+                               const char* group = nullptr);
 
 #endif  // NXDK_LOW_LEVEL_NV2A_TESTS_VSH_ROUNDING_COMMON_H

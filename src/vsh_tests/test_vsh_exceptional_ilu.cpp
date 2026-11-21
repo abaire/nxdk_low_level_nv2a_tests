@@ -345,7 +345,10 @@ bool TestVshExceptionalLit::Test() {
 
     for (size_t i = 0; i < batch; ++i) {
       const auto& c = kLitCases[first + i];
-      pass &= VshReportVector("LIT", c.label, outputs[i], c.expectation);
+      const VshRecordContext context = {
+          "ilu", nullptr, nullptr, nullptr, {{"in_a", c.a, 4}}};
+      pass &=
+          VshReportVector("LIT", c.label, outputs[i], c.expectation, context);
     }
   }
   return pass;
@@ -378,9 +381,11 @@ bool TestVshExceptionalArl::Test() {
   for (size_t i = 0; i < kCount; ++i) {
     const auto& probe = kArlProbes[i];
     const A0ReadResult result = DecodeA0Read(rgb[i]);
-    const LogFields fields = TestFields(
-        "label", probe.label, "bits", Hex32(probe.bits), "rgb", Hex32(rgb[i]),
-        "kind", A0KindName(result.kind), "decoded_index", result.index);
+    const LogFields fields =
+        TestFields("label", probe.label, "bits", Hex32(probe.bits), "rgb",
+                   Hex32(rgb[i]), "kind", A0KindName(result.kind),
+                   "decoded_index", result.index, "group", "ilu", "record_op",
+                   "ARL", "case", probe.label, "in_a", Hex32(probe.bits));
 
     const bool expect_constant = probe.expected_kind == A0ReadKind::kConstant;
     if (result.kind == probe.expected_kind &&

@@ -1,0 +1,11 @@
+#ifndef APP_GIT_REVISION_H_IN_H_
+#define APP_GIT_REVISION_H_IN_H_
+
+//! The commit hash of the source tree this program was built from.
+#define GIT_REVISION "@GIT_REVISION@"
+
+//! Whether tracked files differed from GIT_REVISION when this program was
+//! built.
+#define GIT_DIRTY @GIT_DIRTY@
+
+#endif  // APP_GIT_REVISION_H_IN_H_

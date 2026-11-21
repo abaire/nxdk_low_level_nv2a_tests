@@ -8,6 +8,7 @@
 #include <fstream>
 
 #include "configure.h"
+#include "git_revision.h"
 #include "printf/printf.h"
 
 namespace {
@@ -274,6 +275,10 @@ void BeginSuite(const std::string& suite_name) {
   out += ",\n  \"location_url_base\": ";
   AppendJsonString(out, LOCATION_URL_BASE);
 #endif
+  out += ",\n  \"git_revision\": ";
+  AppendJsonString(out, GIT_REVISION);
+  out += ",\n  \"git_dirty\": ";
+  out += GIT_DIRTY ? "true" : "false";
   out += ",\n  \"suite\": ";
   AppendJsonString(out, suite_name);
   out += ",\n  \"events\": [";

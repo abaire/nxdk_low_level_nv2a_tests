@@ -18,6 +18,16 @@ constexpr const char* kPathOps[kPathOutputs] = {
     "DOTS",  "A + B", "MIN(A, B)", "MAX(A, B)",
 };
 
+constexpr uint32_t kDotsOutput = 4;
+
+//! Whether each output in kPathOps reads C.
+constexpr bool kPathOpUsesC[kPathOutputs] = {false, false, true,  true,
+                                             false, false, false, false};
+
+//! The scalar result in each component of the DOTS output.
+constexpr const char* kDotOps[4] = {"DP4(A, B)", "DP3(A, B)", "DPH(A, B)",
+                                    "DPH(B, A)"};
+
 struct PathCase {
   const char* label;
   uint32_t a[4];
@@ -156,10 +166,34 @@ constexpr ChainCase kChainCases[] = {
 
 bool ReportPathCase(const char* path, const PathCase& c,
                     const uint32_t (*outputs)[4]) {
+  static constexpr const char* kComponents[] = {"x", "y", "z", "w"};
+
   bool pass = true;
   for (uint32_t i = 0; i < kPathOutputs; ++i) {
     const std::string op = std::string(path) + " " + kPathOps[i];
-    pass &= VshReportVector(op.c_str(), c.label, outputs[i], c.expected[i]);
+    VshRecordContext context = {"paths",
+                                nullptr,
+                                nullptr,
+                                nullptr,
+                                {{"in_a", c.a, 4}, {"in_b", c.b, 4}}};
+    if (kPathOpUsesC[i]) {
+      context.operands[2] = {"in_c", c.c, 4};
+    }
+
+    if (i != kDotsOutput) {
+      pass &= VshReportVector(op.c_str(), c.label, outputs[i], c.expected[i],
+                              context);
+      continue;
+    }
+
+    context.case_label = c.label;
+    for (uint32_t j = 0; j < 4; ++j) {
+      const std::string record_op = std::string(path) + " " + kDotOps[j];
+      const std::string label = std::string(c.label) + "." + kComponents[j];
+      context.record_op = record_op.c_str();
+      pass &= VshReportRounding(op.c_str(), label.c_str(), outputs[i][j],
+                                c.expected[i][j], &context);
+    }
   }
   return pass;
 }
@@ -260,16 +294,18 @@ bool TestVshExceptionalFogChain::Test() {
       auto op = [&p](const char* name) {
         return std::string(p.path) + " " + name;
       };
+      const VshRecordContext context = {
+          "fog_chain", nullptr, nullptr, nullptr, {{"in_P", c.p, 4}}};
       pass &= VshReportRounding(op(kChainOps[0]).c_str(), c.label,
-                                p.outputs[0][0], c.rcp_w);
+                                p.outputs[0][0], c.rcp_w, &context);
       pass &= VshReportVector(op(kChainOps[1]).c_str(), c.label, p.outputs[1],
-                              c.p_over_w);
+                              c.p_over_w, context);
       pass &= VshReportRounding(op(kChainOps[2]).c_str(), c.label,
-                                p.outputs[2][0], c.d2);
+                                p.outputs[2][0], c.d2, &context);
       pass &= VshReportRounding(op(kChainOps[3]).c_str(), c.label,
-                                p.outputs[3][0], c.rsq_d2);
+                                p.outputs[3][0], c.rsq_d2, &context);
       pass &= VshReportRounding(op(kChainOps[4]).c_str(), c.label,
-                                p.outputs[4][0], c.d);
+                                p.outputs[4][0], c.d, &context);
     }
     pass &= ComparePaths(c.label, attr, constant, kChainOutputs, kChainOps);
   }

@@ -403,7 +403,10 @@ bool TestVshExceptionalMov::Test() {
         expected[c] = MovExpectation(vector.bits[variant.source_component[c]],
                                      variant.negate);
       }
-      pass &= VshReportVector(variant.op, vector.label, outputs[i], expected);
+      const VshRecordContext context = {
+          "mov", nullptr, nullptr, nullptr, {{"in_a", vector.bits, 4}}};
+      pass &= VshReportVector(variant.op, vector.label, outputs[i], expected,
+                              context);
     }
   }
   return pass;
@@ -415,7 +418,7 @@ bool TestVshExceptionalMul::Test() {
     return false;
   }
   return VshRunBinaryRoundingCases(ComputeShader::kRoundMul, "MUL", kMulCases,
-                                   std::size(kMulCases));
+                                   std::size(kMulCases), "mac");
 }
 
 bool TestVshExceptionalAdd::Test() {
@@ -424,7 +427,7 @@ bool TestVshExceptionalAdd::Test() {
     return false;
   }
   return VshRunBinaryRoundingCases(ComputeShader::kRoundAdd, "ADD", kAddCases,
-                                   std::size(kAddCases));
+                                   std::size(kAddCases), "mac");
 }
 
 bool TestVshExceptionalMad::Test() {
@@ -450,7 +453,7 @@ bool TestVshExceptionalMin::Test() {
     return false;
   }
   return VshRunBinaryRoundingCases(ComputeShader::kExcMin, "MIN", kMinCases,
-                                   std::size(kMinCases));
+                                   std::size(kMinCases), "mac");
 }
 
 bool TestVshExceptionalMax::Test() {
@@ -459,7 +462,7 @@ bool TestVshExceptionalMax::Test() {
     return false;
   }
   return VshRunBinaryRoundingCases(ComputeShader::kExcMax, "MAX", kMaxCases,
-                                   std::size(kMaxCases));
+                                   std::size(kMaxCases), "mac");
 }
 
 bool TestVshExceptionalSlt::Test() {
@@ -468,7 +471,7 @@ bool TestVshExceptionalSlt::Test() {
     return false;
   }
   return VshRunBinaryRoundingCases(ComputeShader::kExcSlt, "SLT", kSltCases,
-                                   std::size(kSltCases));
+                                   std::size(kSltCases), "mac");
 }
 
 bool TestVshExceptionalSge::Test() {
@@ -477,7 +480,7 @@ bool TestVshExceptionalSge::Test() {
     return false;
   }
   return VshRunBinaryRoundingCases(ComputeShader::kExcSge, "SGE", kSgeCases,
-                                   std::size(kSgeCases));
+                                   std::size(kSgeCases), "mac");
 }
 
 bool TestVshExceptionalDst::Test() {
@@ -512,7 +515,13 @@ bool TestVshExceptionalDst::Test() {
 
     for (size_t i = 0; i < batch; ++i) {
       const auto& c = kDstCases[first + i];
-      pass &= VshReportVector("DST", c.label, outputs[i], c.expectation);
+      const VshRecordContext context = {"mac",
+                                        nullptr,
+                                        nullptr,
+                                        nullptr,
+                                        {{"in_a", c.a, 4}, {"in_b", c.b, 4}}};
+      pass &=
+          VshReportVector("DST", c.label, outputs[i], c.expectation, context);
     }
   }
   return pass;
